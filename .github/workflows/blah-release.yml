@@ -1,0 +1,197 @@
+# BLAH: build libtdjson against the datacenters C3 advertises, and publish it.
+#
+# Teleblah's end-to-end suite drives a real TDLib against a real Blah server,
+# and building TDLib takes tens of minutes — far more than the suite it feeds.
+# So the library is built here, once per push, and the suite downloads the
+# resulting release asset (Scripts/fetch-tdlib.sh in the server repository).
+#
+# Every push publishes two releases with identical assets:
+#   blah-<date>-<sha>  immutable, what a consumer pins to
+#   blah-latest        rolling, what an unpinned consumer follows
+#
+# The datacenter list and RSA public keys are baked in at configure time from
+# the C3 endpoint in blah-server.config.url (see CMake/BlahDcConfig.cmake); a
+# manual run may point somewhere else. A build that cannot reach C3 fails
+# rather than quietly producing a client that talks to Telegram.
+name: Build and release libtdjson
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+    inputs:
+      dc_config_url:
+        description: "C3 /api/dcs endpoint (default: blah-server.config.url)"
+        required: false
+        type: string
+
+concurrency:
+  group: blah-release-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Pinned rather than -latest: the shared library links the runner's
+          # OpenSSL and glibc, and consumers have to keep running against them.
+          # Teleblah's e2e job runs on ubuntu-24.04 as well.
+          - os: ubuntu-24.04
+            target: linux-x86_64
+            lib: libtdjson.so
+            jobs: 4
+          - os: ubuntu-24.04-arm
+            target: linux-aarch64
+            lib: libtdjson.so
+            jobs: 4
+          - os: macos-14
+            target: macos-aarch64
+            lib: libtdjson.dylib
+            # 7 GB of RAM: the generated TL translation units are large enough
+            # that a wider build swaps.
+            jobs: 2
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake gperf libssl-dev zlib1g-dev
+
+      - name: Install build dependencies (macOS)
+        if: runner.os == 'macOS'
+        run: brew install gperf openssl@3
+
+      - name: Set up ccache
+        uses: hendrikmuhs/ccache-action@v1
+        with:
+          key: blah-tdjson-${{ matrix.target }}
+          max-size: 900M
+
+      # BLAH_DC_CONFIG_URL empty means CMake/BlahDcConfig.cmake reads
+      # blah-server.config.url itself, which is the normal path.
+      - name: Configure
+        env:
+          BLAH_DC_CONFIG_URL: ${{ inputs.dc_config_url }}
+        run: |
+          set -eu
+          openssl_root=""
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            openssl_root="-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)"
+          fi
+          cmake -B build -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
+            -DBLAH_DC_CONFIG_URL="$BLAH_DC_CONFIG_URL" \
+            $openssl_root .
+
+      - name: Build libtdjson
+        run: cmake --build build --target tdjson --parallel ${{ matrix.jobs }}
+
+      # The manifest travels with the library so a consumer can assert what it
+      # got — above all the MTProto layer, which decides whether the server
+      # under test speaks the same protocol.
+      - name: Stage the release asset
+        run: |
+          set -eu
+          out="dist/libtdjson-${{ matrix.target }}"
+          mkdir -p "$out"
+          # The build product carries a SOVERSION, so ${{ matrix.lib }} is a
+          # symlink; -L ships the library itself under the unversioned name the
+          # consumer dlopen()s.
+          cp -L "build/${{ matrix.lib }}" "$out/${{ matrix.lib }}"
+          layer="$(sed -n 's/.*MTPROTO_LAYER = \([0-9]*\).*/\1/p' td/telegram/Version.h)"
+          version="$(sed -n 's/^project(TDLib VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)"
+          cat > "$out/manifest.json" <<EOF
+          {
+            "target": "${{ matrix.target }}",
+            "library": "${{ matrix.lib }}",
+            "tdlibVersion": "$version",
+            "mtprotoLayer": $layer,
+            "commit": "${{ github.sha }}",
+            "dcConfigUrl": "${{ inputs.dc_config_url || '' }}",
+            "builtOn": "${{ matrix.os }}"
+          }
+          EOF
+          cat "$out/manifest.json"
+          tar -czf "libtdjson-${{ matrix.target }}.tar.gz" -C dist "libtdjson-${{ matrix.target }}"
+
+      # A library that cannot be dlopen'd is not a release. This is the same
+      # call the Deno harness makes first.
+      - name: Smoke-test the library
+        run: |
+          set -eu
+          lib="dist/libtdjson-${{ matrix.target }}/${{ matrix.lib }}"
+          cat > smoke.c <<'EOF'
+          #include <dlfcn.h>
+          #include <stdio.h>
+          int main(int argc, char **argv) {
+            void *h = dlopen(argv[1], RTLD_NOW);
+            if (!h) { fprintf(stderr, "dlopen: %s\n", dlerror()); return 1; }
+            const char *(*execute)(const char *) = dlsym(h, "td_execute");
+            int (*create)(void) = dlsym(h, "td_create_client_id");
+            if (!execute || !create) { fprintf(stderr, "missing tdjson symbols\n"); return 1; }
+            const char *r = execute("{\"@type\":\"getTextEntities\",\"text\":\"@blah\"}");
+            printf("%s\n", r ? r : "(null)");
+            return r && r[0] ? 0 : 1;
+          }
+          EOF
+          # dlopen lives in libSystem on macOS; only glibc keeps it in -ldl.
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            cc -o smoke smoke.c
+          else
+            cc -o smoke smoke.c -ldl
+          fi
+          ./smoke "$lib"
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: libtdjson-${{ matrix.target }}
+          path: libtdjson-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish
+    needs: build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Download the built libraries
+        uses: actions/download-artifact@v4
+        with:
+          path: assets
+          merge-multiple: true
+
+      # The immutable release is what a consumer pins to; blah-latest is
+      # recreated each time so an unpinned consumer follows master. Deleting it
+      # first (tag included) keeps the asset set from accumulating stale
+      # targets.
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -eu
+          tag="blah-$(date -u +%Y%m%d)-${GITHUB_SHA::7}"
+          layer="$(sed -n 's/.*MTPROTO_LAYER = \([0-9]*\).*/\1/p' td/telegram/Version.h)"
+          notes="TDLib built for Blah from \`${GITHUB_SHA::7}\`, MTProto layer $layer.
+
+          Datacenters and RSA public keys are baked in from the C3 control plane in
+          \`blah-server.config.url\`. Set \`BLAH_DC_CONFIG\` to a C3 \`/api/dcs\`
+          document to override them at runtime."
+          gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" assets/*.tar.gz --title "$tag" --notes "$notes"
+          gh release delete blah-latest --yes --cleanup-tag 2>/dev/null || true
+          gh release create blah-latest assets/*.tar.gz \
+            --title "blah-latest" --notes "Rolling alias for [\`$tag\`](../../releases/tag/$tag)."

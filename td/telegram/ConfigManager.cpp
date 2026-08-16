@@ -17,6 +17,7 @@
 #include "td/telegram/logevent/LogEvent.h"
 #include "td/telegram/misc.h"
 #include "td/telegram/net/AuthDataShared.h"
+#include "td/telegram/net/BlahDcConfig.h"
 #include "td/telegram/net/ConnectionCreator.h"
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/DcOptions.h"
@@ -740,7 +741,11 @@ class ConfigRecoverer final : public Actor {
       simple_config_ = DcOptions();
       update_dc_options();
     }
-    bool need_simple_config = has_connecting_problem && !is_valid_simple_config && simple_config_query_.empty();
+    // BLAH: the out-of-band recovery below asks Google, Mozilla, Azure and
+    // Firebase for Telegram's datacenter list. A Blah client has C3's list
+    // compiled in and must never reach for Telegram's.
+    bool need_simple_config =
+        has_connecting_problem && !is_valid_simple_config && simple_config_query_.empty() && !blah::is_active();
     bool has_dc_options = !dc_options_.dc_options.empty();
     bool is_valid_full_config = !check_timeout(Timestamp::at(full_config_expires_at_));
     bool need_full_config = has_connecting_problem && has_dc_options && !is_valid_full_config &&

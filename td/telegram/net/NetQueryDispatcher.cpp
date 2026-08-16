@@ -8,6 +8,7 @@
 
 #include "td/telegram/Global.h"
 #include "td/telegram/net/AuthDataShared.h"
+#include "td/telegram/net/BlahDcConfig.h"
 #include "td/telegram/net/DcAuthManager.h"
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDelayer.h"
@@ -373,6 +374,10 @@ NetQueryDispatcher::NetQueryDispatcher(const std::function<ActorShared<>()> &cre
   auto s_main_dc_id = G()->td_db()->get_binlog_pmc()->get("main_dc_id");
   if (!s_main_dc_id.empty()) {
     main_dc_id_ = to_integer<int32>(s_main_dc_id);
+  } else if (blah::is_active()) {
+    // BLAH: a Blah deployment need not have a datacenter 1, so a fresh client
+    // starts on the one C3 lists first instead of the Telegram default.
+    main_dc_id_ = blah::get_dc_config().default_dc_id;
   }
   delayer_ = create_actor<NetQueryDelayer>("NetQueryDelayer", create_reference());
 #if TD_ANDROID || TD_DARWIN_IOS || TD_DARWIN_VISION_OS || TD_DARWIN_WATCH_OS || TD_TEST_VERIFICATION
