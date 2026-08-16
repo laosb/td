@@ -6,6 +6,9 @@
 //
 #include "td/telegram/net/PublicRsaKeySharedMain.h"
 
+#include "td/telegram/net/BlahDcConfig.h"
+
+#include "td/utils/logging.h"
 #include "td/utils/Slice.h"
 #include "td/utils/SliceBuilder.h"
 
@@ -17,6 +20,26 @@ std::shared_ptr<PublicRsaKeySharedMain> PublicRsaKeySharedMain::create(bool is_t
     auto fingerprint = rsa.get_fingerprint();
     keys.push_back(RsaKey{std::move(rsa), fingerprint});
   };
+
+  // BLAH: one key per datacenter C3 published, in place of Telegram's. The
+  // handshake matches on fingerprint, so every datacenter's key goes in and a
+  // client that migrates keeps working.
+  if (blah::is_active()) {
+    static auto blah_public_rsa_key = [] {
+      vector<RsaKey> keys;
+      for (const auto &pem : blah::get_dc_config().rsa_public_keys) {
+        auto r_rsa = mtproto::RSA::from_pem_public_key(pem);
+        if (r_rsa.is_error()) {
+          LOG(ERROR) << "BLAH: ignoring an unparsable datacenter RSA public key: " << r_rsa.error();
+          continue;
+        }
+        auto fingerprint = r_rsa.ok().get_fingerprint();
+        keys.push_back(RsaKey{r_rsa.move_as_ok(), fingerprint});
+      }
+      return std::make_shared<PublicRsaKeySharedMain>(std::move(keys));
+    }();
+    return blah_public_rsa_key;
+  }
 
   if (is_test) {
     static auto test_public_rsa_key = [&] {

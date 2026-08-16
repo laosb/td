@@ -9,6 +9,7 @@
 #include "td/telegram/ConfigManager.h"
 #include "td/telegram/Global.h"
 #include "td/telegram/logevent/LogEvent.h"
+#include "td/telegram/net/BlahDcConfig.h"
 #include "td/telegram/net/MtprotoHeader.h"
 #include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/net/NetType.h"
@@ -1218,6 +1219,10 @@ void ConnectionCreator::hangup() {
 }
 
 DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
+  // BLAH: the datacenters C3 published, in place of Telegram's hardcoded ones.
+  if (blah::is_active()) {
+    return blah::get_dc_config().dc_options;
+  }
   DcOptions res;
   enum class HostType : int32 { IPv4, IPv6, Url };
   auto add_ip_ports = [&res](int32 dc_id, vector<string> ip_address_strings, const vector<int> &ports,
