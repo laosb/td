@@ -25,6 +25,10 @@ endif()
 include(PreventInSourceBuild)
 prevent_in_source_build()
 
+# BLAH: fetch the datacenter list and RSA keys from C3 and generate the header
+# td/telegram/net/BlahDcConfig.h reads. Must precede every target.
+include(BlahDcConfig)
+
 option(TD_INSTALL_STATIC_LIBRARIES "Enable installation of static libraries." ON)
 option(TD_INSTALL_SHARED_LIBRARIES "Enable installation of shared libraries." ON)
 option(TD_ENABLE_JNI "Use \"ON\" to enable JNI-compatible TDLib API.")
