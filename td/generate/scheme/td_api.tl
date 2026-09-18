@@ -16316,7 +16316,7 @@ testReturnError error:error = Error;
 ---types---
 
 //@description A device-login challenge and its locally observed MTProto binding. Verify all fields before signing with Diem
-//@payload Canonical CBOR challenge @auth_key_id Local permanent MTProto auth key identifier @session_id Local MTProto session identifier
+//@payload Canonical CBOR challenge @auth_key_id Local encrypted transport key identifier (temporary when using PFS) @session_id Local MTProto session identifier
 diemAuthenticationChallenge payload:bytes auth_key_id:int64 session_id:int64 = DiemAuthenticationChallenge;
 
 //@description The DC's advertised federation identity; applications must compare it with their independently pinned destination

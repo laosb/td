@@ -51,7 +51,7 @@ void AuthManager::on_diem_federation_info(NetQueryPtr query) {
 }
 
 void AuthManager::on_diem_challenge(NetQueryPtr query) {
-  auto auth_key_id = static_cast<int64>(query->get_main_auth_key_id());
+  auto auth_key_id = static_cast<int64>(query->response_auth_key_id());
   auto session_id = static_cast<int64>(query->response_session_id());
   auto result = fetch_result<telegram_api::blah_getDeviceChallenge>(std::move(query));
   if (result.is_error()) { return on_current_query_error(result.move_as_error()); }
