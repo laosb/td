@@ -3257,3 +3257,13 @@ wallet.tonConnectSubmitResponse#fac67d3c flags:# session_id:long msg_id:int body
 wallet.tonConnectNextEventId#775d7244 session_id:long = TonConnectNextEventId;
 wallet.tonConnectCloseSession#d63f61ce flags:# session_id:long body:flags.0?bytes = Bool;
 wallet.tonConnectGetSessions#a7ffb56e = wallet.TonConnectSessions;
+
+// BLAH: device authentication transport; Diem crypto stays in the application.
+---types---
+blah.deviceChallenge#3aff2c63 payload:bytes = blah.DeviceChallenge;
+blah.federationInfo#2c837d85 domain:string public_key:bytes = blah.FederationInfo;
+---functions---
+blah.getFederationInfo#35f63b15 = blah.FederationInfo;
+blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string = blah.DeviceChallenge;
+blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;
+blah.signInWithDevice#075b1209 nonce:bytes proof:bytes = auth.Authorization;

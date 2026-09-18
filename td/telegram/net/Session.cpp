@@ -488,6 +488,11 @@ void Session::on_result(NetQueryPtr query) {
 void Session::return_query(NetQueryPtr &&query) {
   last_activity_timestamp_ = Time::now();
 
+  // BLAH: expose only the binding of the encrypted response, never key material.
+  if (query->is_ok()) {
+    query->set_response_session_id(auth_data_.get_session_id());
+    query->set_main_auth_key_id(auth_data_.get_main_auth_key().id());
+  }
   query->set_session_id(0);
   callback_->on_result(std::move(query));
 }
