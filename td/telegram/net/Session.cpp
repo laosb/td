@@ -491,6 +491,7 @@ void Session::return_query(NetQueryPtr &&query) {
   // BLAH: expose only the binding of the encrypted response, never key material.
   if (query->is_ok()) {
     query->set_response_session_id(auth_data_.get_session_id());
+    query->set_response_auth_key_id(auth_data_.get_auth_key().id());
     query->set_main_auth_key_id(auth_data_.get_main_auth_key().id());
   }
   query->set_session_id(0);
