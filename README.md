@@ -9,6 +9,12 @@ public profiles and proofs; signing and wrapping keys remain with the applicatio
 The adapter is isolated in `td/telegram/AuthManagerDiem.cpp` to keep fork changes
 small. Standard Telegram authorization behavior remains available for Telegram.
 
+Applications configure their DC endpoints and pinned RSA public keys with
+`BLAH_DC_CONFIG` JSON at runtime, or `-DBLAH_DC_CONFIG_FILE=<path>` at build time.
+The document has a `dcs` array of `{id, rsaPublicKey, endpoints}` entries; each
+endpoint has `ip`, `port`, and `wsTlsOnly`. Put the home DC first. Builds never
+download a directory, and a configured but unusable document fails closed.
+
 TDLib (Telegram Database library) is a cross-platform library for building [Telegram](https://telegram.org) clients. It can be easily used from almost any programming language.
 
 ## Table of Contents

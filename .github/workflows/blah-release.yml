@@ -1,4 +1,4 @@
-# BLAH: build libtdjson against the datacenters C3 advertises, and publish it.
+# BLAH: build libtdjson with application-supplied datacenter configuration.
 #
 # Teleblah's end-to-end suite drives a real TDLib against a real Blah server,
 # and building TDLib takes tens of minutes — far more than the suite it feeds.
@@ -9,21 +9,14 @@
 #   blah-<date>-<sha>  immutable, what a consumer pins to
 #   blah-latest        rolling, what an unpinned consumer follows
 #
-# The datacenter list and RSA public keys are baked in at configure time from
-# the C3 endpoint in blah-server.config.url (see CMake/BlahDcConfig.cmake); a
-# manual run may point somewhere else. A build that cannot reach C3 fails
-# rather than quietly producing a client that talks to Telegram.
+# Applications supply BLAH_DC_CONFIG before creating their first client. Builds
+# do not contact a directory or embed a deployment's endpoints or keys.
 name: Build and release libtdjson
 
 on:
   push:
     branches: [master, main]
   workflow_dispatch:
-    inputs:
-      dc_config_url:
-        description: "C3 /api/dcs endpoint (default: blah-server.config.url)"
-        required: false
-        type: string
 
 concurrency:
   group: blah-release-${{ github.ref }}
@@ -77,11 +70,7 @@ jobs:
           key: blah-tdjson-${{ matrix.target }}
           max-size: 900M
 
-      # BLAH_DC_CONFIG_URL empty means CMake/BlahDcConfig.cmake reads
-      # blah-server.config.url itself, which is the normal path.
       - name: Configure
-        env:
-          BLAH_DC_CONFIG_URL: ${{ inputs.dc_config_url }}
         run: |
           set -eu
           openssl_root=""
@@ -90,7 +79,6 @@ jobs:
           fi
           cmake -B build -DCMAKE_BUILD_TYPE=Release \
             -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
-            -DBLAH_DC_CONFIG_URL="$BLAH_DC_CONFIG_URL" \
             $openssl_root .
 
       - name: Build libtdjson
@@ -117,7 +105,7 @@ jobs:
             "tdlibVersion": "$version",
             "mtprotoLayer": $layer,
             "commit": "${{ github.sha }}",
-            "dcConfigUrl": "${{ inputs.dc_config_url || '' }}",
+            "dcConfiguration": "application",
             "builtOn": "${{ matrix.os }}"
           }
           EOF
@@ -187,9 +175,8 @@ jobs:
           layer="$(sed -n 's/.*MTPROTO_LAYER = \([0-9]*\).*/\1/p' td/telegram/Version.h)"
           notes="TDLib built for Blah from \`${GITHUB_SHA::7}\`, MTProto layer $layer.
 
-          Datacenters and RSA public keys are baked in from the C3 control plane in
-          \`blah-server.config.url\`. Set \`BLAH_DC_CONFIG\` to a C3 \`/api/dcs\`
-          document to override them at runtime."
+          Set \`BLAH_DC_CONFIG\` to the application's explicit endpoint and RSA-key
+          configuration before creating a client. No directory is contacted."
           gh release delete "$tag" --yes --cleanup-tag 2>/dev/null || true
           gh release create "$tag" assets/*.tar.gz --title "$tag" --notes "$notes"
           gh release delete blah-latest --yes --cleanup-tag 2>/dev/null || true

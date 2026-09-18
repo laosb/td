@@ -1,19 +1,7 @@
-//
-// BLAH: the datacenter list and RSA public keys this client trusts.
-//
-// Upstream TDLib hardcodes Telegram's addresses and keys. A Blah build takes
-// both from a C3 control plane: CMake/BlahDcConfig.cmake fetches C3's
-// /api/dcs document at configure time and embeds it in BlahDcConfigData.h,
-// and this header parses it once, lazily, on first use.
-//
-// BLAH_DC_CONFIG overrides the embedded document at runtime with the same JSON
-// shape. That is how the server's end-to-end suite points a released build at
-// throwaway datacenters on 127.0.0.1 without rebuilding the library. It is read
-// on first use rather than at load time, so a host may allocate its ports and
-// mint its keys after the library is loaded, but before the first client.
-//
-// An empty document leaves every call site on upstream behaviour, so a build
-// configured against no C3 is a stock TDLib.
+// BLAH: application-owned endpoints and pinned RSA keys. CMake embeds an
+// explicitly supplied JSON file; BLAH_DC_CONFIG may replace it before first use.
+// A configured document never falls back to upstream endpoints on failure.
+// With no document at all this remains a normal Telegram client.
 //
 #pragma once
 
@@ -36,10 +24,10 @@ struct DcConfig {
   // False for a stock build, and for a document that described no usable
   // datacenter. Every Blah call site is a no-op unless this is true.
   bool is_active = false;
-  // The datacenter a fresh client starts on: C3 lists the initial DC first.
+  // The datacenter a fresh client starts on: the application lists its home first.
   int32 default_dc_id = 0;
   DcOptions dc_options;
-  // One PEM per datacenter, in C3's order.
+  // One PEM per datacenter, in configured order.
   vector<string> rsa_public_keys;
 };
 
@@ -119,7 +107,7 @@ inline DcConfig parse_dc_config(string json, Slice source) {
         auto status = ip.find(':') == string::npos ? ip_address.init_ipv4_port(ip, port)
                                                    : ip_address.init_ipv6_port(ip, port);
         if (status.is_error()) {
-          // C3 calls the field "ip", but a deployment may advertise a hostname.
+          // The "ip" field also accepts an application-configured hostname.
           status = ip_address.init_host_port(ip, port);
         }
         if (status.is_error()) {
@@ -142,7 +130,7 @@ inline DcConfig parse_dc_config(string json, Slice source) {
     }
   }
 
-  // An explicit choice wins over "the first datacenter C3 listed"; the e2e
+  // An explicit choice wins over the first configured datacenter; the e2e
   // harness uses it to start a client on a datacenter other than the initial
   // one.
   auto r_default_dc_id = root.get_optional_int_field("defaultDcId");
@@ -165,9 +153,13 @@ inline const DcConfig &get_dc_config() {
   static const DcConfig config = [] {
     const char *env = std::getenv("BLAH_DC_CONFIG");
     if (env != nullptr && *env != '\0') {
-      return parse_dc_config(string(env), Slice("BLAH_DC_CONFIG"));
+      auto result = parse_dc_config(string(env), Slice("BLAH_DC_CONFIG"));
+      CHECK(result.is_active);
+      return result;
     }
-    return parse_dc_config(string(DC_CONFIG_BUILTIN), Slice(DC_CONFIG_BUILD_SOURCE));
+    auto result = parse_dc_config(string(DC_CONFIG_BUILTIN), Slice(DC_CONFIG_BUILD_SOURCE));
+    CHECK(string(DC_CONFIG_BUILTIN).empty() || result.is_active);
+    return result;
   }();
   return config;
 }
