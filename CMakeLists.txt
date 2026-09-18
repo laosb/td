@@ -25,7 +25,7 @@ endif()
 include(PreventInSourceBuild)
 prevent_in_source_build()
 
-# BLAH: fetch the datacenter list and RSA keys from C3 and generate the header
+# BLAH: load an explicit datacenter list and RSA keys and generate the header
 # td/telegram/net/BlahDcConfig.h reads. Must precede every target.
 include(BlahDcConfig)
 
