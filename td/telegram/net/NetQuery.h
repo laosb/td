@@ -159,6 +159,10 @@ class NetQuery final : public TsListNode<NetQueryDebug> {
   uint64 get_main_auth_key_id() const {
     return main_auth_key_id_.load(std::memory_order_relaxed);
   }
+
+  // BLAH: non-secret transport binding captured before Session clears routing state.
+  uint64 response_session_id() const { return response_session_id_; }
+  void set_response_session_id(uint64 value) { response_session_id_ = value; }
   void set_main_auth_key_id(uint64 auth_key_id) {
     main_auth_key_id_.store(auth_key_id, std::memory_order_relaxed);
   }
@@ -299,6 +303,7 @@ class NetQuery final : public TsListNode<NetQueryDebug> {
 
   movable_atomic<int32> real_dc_id_{0};
   movable_atomic<uint64> main_auth_key_id_{0};
+  uint64 response_session_id_ = 0;
   movable_atomic<uint64> session_id_{0};
   uint64 message_id_{0};
 

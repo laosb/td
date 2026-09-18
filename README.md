@@ -1,5 +1,14 @@
 # TDLib
 
+Blah device authentication uses `getDiemFederationInfo`,
+`requestDiemAuthentication`, and `checkDiemAuthentication`. The application
+validates the advertised federation identity against its configured destination,
+then verifies the challenge's operation, profile, identity, device, expiry and
+locally observed auth-key/session IDs before signing with Diem. TDLib only carries
+public profiles and proofs; signing and wrapping keys remain with the application.
+The adapter is isolated in `td/telegram/AuthManagerDiem.cpp` to keep fork changes
+small. Standard Telegram authorization behavior remains available for Telegram.
+
 TDLib (Telegram Database library) is a cross-platform library for building [Telegram](https://telegram.org) clients. It can be easily used from almost any programming language.
 
 ## Table of Contents

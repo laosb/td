@@ -155,6 +155,9 @@ bool Td::is_authentication_request(int32 id) {
   switch (id) {
     case td_api::setTdlibParameters::ID:
     case td_api::getAuthorizationState::ID:
+    case td_api::getDiemFederationInfo::ID:
+    case td_api::requestDiemAuthentication::ID:
+    case td_api::checkDiemAuthentication::ID:
     case td_api::setAuthenticationPhoneNumber::ID:
     case td_api::checkAuthenticationPremiumPurchase::ID:
     case td_api::setAuthenticationPremiumPurchaseTransaction::ID:

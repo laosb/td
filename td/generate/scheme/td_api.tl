@@ -16311,3 +16311,27 @@ testUseUpdate = Update;
 
 //@description Returns the specified error and ensures that the Error object is used; for testing only. Can be called synchronously @error The error to be returned
 testReturnError error:error = Error;
+
+// BLAH: application-held Diem keys; no private keys cross the TDLib API.
+---types---
+
+//@description A device-login challenge and its locally observed MTProto binding. Verify all fields before signing with Diem
+//@payload Canonical CBOR challenge @auth_key_id Local permanent MTProto auth key identifier @session_id Local MTProto session identifier
+diemAuthenticationChallenge payload:bytes auth_key_id:int64 session_id:int64 = DiemAuthenticationChallenge;
+
+//@description The DC's advertised federation identity; applications must compare it with their independently pinned destination
+//@domain Canonical DC domain @public_key Algorithm-qualified Diem public-key encoding
+diemFederationInfo domain:string public_key:bytes = DiemFederationInfo;
+
+---functions---
+
+//@description Gets the DC federation identity before login. Available before authorization
+getDiemFederationInfo = DiemFederationInfo;
+
+//@description Requests a challenge for application-held device keys. Available before authorization
+//@profile Signed public Diem profile @device_id Device signing-key ID @is_sign_up True to create an account; false to sign in
+requestDiemAuthentication profile:bytes device_id:bytes is_sign_up:Bool = DiemAuthenticationChallenge;
+
+//@description Completes device authorization using an application-produced Diem proof. Available before authorization
+//@nonce Challenge nonce @proof Diem login proof @is_sign_up True for signup @first_name First name for signup @last_name Last name for signup
+checkDiemAuthentication nonce:bytes proof:bytes is_sign_up:Bool first_name:string last_name:string = Ok;

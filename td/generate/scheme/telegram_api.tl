@@ -3139,3 +3139,13 @@ ephemeral.editMessage#cf9c725b flags:# invert_media:flags.5?true welcome:flags.6
 ephemeral.deleteWelcomeMessage#e882a9e1 peer:InputPeer id:int = Bool;
 ephemeral.deleteAllWelcomeMessages#734f9721 peer:InputPeer = Bool;
 ephemeral.getWelcomeMessages#db9ac18d peer:InputPeer hash:long = ephemeral.WelcomeMessages;
+
+// BLAH: device authentication transport; Diem crypto stays in the application.
+---types---
+blah.deviceChallenge#3aff2c63 payload:bytes = blah.DeviceChallenge;
+blah.federationInfo#2c837d85 domain:string public_key:bytes = blah.FederationInfo;
+---functions---
+blah.getFederationInfo#35f63b15 = blah.FederationInfo;
+blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string = blah.DeviceChallenge;
+blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;
+blah.signInWithDevice#075b1209 nonce:bytes proof:bytes = auth.Authorization;
