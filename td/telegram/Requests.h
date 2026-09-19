@@ -114,6 +114,8 @@ class Requests {
   void on_request(uint64 id, const td_api::getDiemFederationInfo &request);
   void on_request(uint64 id, td_api::requestDiemAuthentication &request);
   void on_request(uint64 id, td_api::checkDiemAuthentication &request);
+  void on_request(uint64 id, td_api::prepareDiemInvocation &request);
+  void on_request(uint64 id, td_api::invokeDiemSignedQuery &request);
 
   void on_request(uint64 id, td_api::checkAuthenticationPremiumPurchase &request);
 
