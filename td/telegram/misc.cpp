@@ -50,7 +50,12 @@ string clean_name(string str, size_t max_length) {
 }
 
 string clean_username(string str) {
-  td::remove(str, '.');
+  str = trim(str);
+  // Blah qualified handles preserve the domain. Unqualified Telegram names
+  // retain upstream normalization; validation remains with the named server.
+  if (str.find('@', 1) == string::npos) {
+    td::remove(str, '.');
+  }
   to_lower_inplace(str);
   return trim(str);
 }
