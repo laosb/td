@@ -19,6 +19,9 @@ operation before signing. The transport adapter in `td/telegram/RequestsDiem.cpp
 does not hold keys, approve automatically or bypass ordinary server permissions.
 Unsupported signed methods are rejected by the server.
 
+Qualified public names such as `alice@two.example` retain dots in the domain
+during username normalization. Unqualified names keep upstream behavior.
+
 Applications configure their DC endpoints and pinned RSA public keys with
 `BLAH_DC_CONFIG` JSON at runtime, or `-DBLAH_DC_CONFIG_FILE=<path>` at build time.
 The document has a `dcs` array of `{id, rsaPublicKey, endpoints}` entries; each

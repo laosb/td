@@ -34,6 +34,10 @@ TEST(StringCleaning, clean_username) {
   ASSERT_EQ("ЛШТШФУМ", td::clean_username("ЛШТШФУМ"));
   ASSERT_EQ("", td::clean_username("...."));
   ASSERT_EQ("asd", td::clean_username(".   ASD   .."));
+  ASSERT_EQ("alice@two.example", td::clean_username("  Alice@Two.Example  "));
+  ASSERT_EQ("@alice@two.example", td::clean_username("@Alice@Two.Example"));
+  ASSERT_EQ("alice", td::clean_username("Ali.ce"));
+  ASSERT_EQ("@mention", td::clean_username("  @men.tion  "));
 }
 
 static void check_clean_input_string(td::string str, const td::string &expected, bool expected_result) {
