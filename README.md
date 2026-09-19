@@ -11,6 +11,14 @@ public profiles and proofs; signing and wrapping keys remain with the applicatio
 The adapter is isolated in `td/telegram/AuthManagerDiem.cpp` to keep fork changes
 small. Standard Telegram authorization behavior remains available for Telegram.
 
+`prepareDiemInvocation` and `invokeDiemSignedQuery` carry exact original-layer
+queries, canonical mapping proposals and application-approved action proofs over
+the authorized connection. Applications independently verify the pinned namespace,
+retained generation/peer bindings, full query reference inventory and intended
+operation before signing. The transport adapter in `td/telegram/RequestsDiem.cpp`
+does not hold keys, approve automatically or bypass ordinary server permissions.
+Unsupported signed methods are rejected by the server.
+
 Applications configure their DC endpoints and pinned RSA public keys with
 `BLAH_DC_CONFIG` JSON at runtime, or `-DBLAH_DC_CONFIG_FILE=<path>` at build time.
 The document has a `dcs` array of `{id, rsaPublicKey, endpoints}` entries; each

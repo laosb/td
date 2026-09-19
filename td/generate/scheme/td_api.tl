@@ -16335,3 +16335,23 @@ requestDiemAuthentication profile:bytes device_id:bytes is_sign_up:Bool = DiemAu
 //@description Completes device authorization using an application-produced Diem proof. Available before authorization
 //@nonce Challenge nonce @proof Diem login proof @is_sign_up True for signup @first_name First name for signup @last_name Last name for signup
 checkDiemAuthentication nonce:bytes proof:bytes is_sign_up:Bool first_name:string last_name:string = Ok;
+
+---types---
+
+//@description An exact original-layer signed-invocation proposal. The application must independently inspect the query, verify all canonical mappings and approve with its device key
+//@statement Canonical CBOR statement @manifest DC-signed canonical mapping manifest
+diemInvocationPreparation statement:bytes manifest:bytes = DiemInvocationPreparation;
+
+//@description The original-layer boxed result of an approved invocation
+//@request_id Application-selected request identifier @result Boxed TL result bytes
+diemInvocationResult request_id:bytes result:bytes = DiemInvocationResult;
+
+---functions---
+
+//@description Prepares an application-held-device signed query on the authorized connection. This method never signs automatically
+//@layer Original TL layer, matching this connection @query Original boxed TL query @request_id Random 32-byte application request identifier @device_id Signing device identifier
+prepareDiemInvocation layer:int32 query:bytes request_id:bytes device_id:bytes = DiemInvocationPreparation;
+
+//@description Submits an application-approved Diem action proof. No private key is passed to TDLib
+//@statement Exact prepared statement @manifest Exact verified mapping manifest @proof Device action proof over the statement
+invokeDiemSignedQuery statement:bytes manifest:bytes proof:bytes = DiemInvocationResult;

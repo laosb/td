@@ -358,6 +358,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/AudiosManager.cpp
   td/telegram/AuthManager.cpp
   td/telegram/AuthManagerDiem.cpp
+  td/telegram/RequestsDiem.cpp
   td/telegram/AutoDownloadSettings.cpp
   td/telegram/AutosaveManager.cpp
   td/telegram/BackgroundInfo.cpp

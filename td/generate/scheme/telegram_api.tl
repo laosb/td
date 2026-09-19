@@ -3149,3 +3149,15 @@ blah.getFederationInfo#35f63b15 = blah.FederationInfo;
 blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string = blah.DeviceChallenge;
 blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;
 blah.signInWithDevice#075b1209 nonce:bytes proof:bytes = auth.Authorization;
+
+---types---
+
+blah.signedInvocationPreparation#361565c1 statement:bytes manifest:bytes = blah.SignedInvocationPreparation;
+
+blah.signedInvocationResult#fdc7e2cb request_id:bytes result:bytes = blah.SignedInvocationResult;
+
+---functions---
+
+blah.prepareSignedInvocation#66aa458f layer:int query:bytes request_id:bytes device_id:bytes = blah.SignedInvocationPreparation;
+
+blah.invokeWithSig#a9824335 statement:bytes manifest:bytes proof:bytes = blah.SignedInvocationResult;
