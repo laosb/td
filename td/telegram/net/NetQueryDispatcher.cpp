@@ -180,8 +180,12 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
   if (dest_dc_id.is_main()) {
     dest_dc_id = DcId::internal(main_dc_id_.load(std::memory_order_relaxed));
   }
-  if (!net_query->is_ready() && wait_dc_init(dest_dc_id, true).is_error()) {
-    net_query->set_error(Status::Error(PSLICE() << "No such dc " << dest_dc_id));
+  if (!net_query->is_ready()) {
+    auto status = wait_dc_init(dest_dc_id, true);
+    if (status.is_error()) {
+      net_query->set_error(status.code() == 400 ? std::move(status)
+                                               : Status::Error(PSLICE() << "No such dc " << dest_dc_id));
+    }
   }
 
   if (net_query->is_ready()) {
@@ -225,6 +229,10 @@ Status NetQueryDispatcher::wait_dc_init(DcId dc_id, bool force) {
   if (!dc_id.is_exact()) {
     return Status::Error("Not exact DC");
   }
+  const auto &configuration = G()->network_configuration();
+  if (configuration && !configuration->contains(dc_id)) {
+    return Status::Error(400, "NETWORK_DC_UNCONFIGURED");
+  }
   auto pos = static_cast<size_t>(dc_id.get_raw_id() - 1);
   if (pos >= dcs_.size()) {
     return Status::Error("Too big DC ID");
@@ -251,7 +259,8 @@ Status NetQueryDispatcher::wait_dc_init(DcId dc_id, bool force) {
     std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key;
     bool is_cdn = false;
     if (dc_id.is_internal()) {
-      public_rsa_key = PublicRsaKeySharedMain::create(G()->is_test_dc());
+      public_rsa_key = configuration ? configuration->public_keys.at(dc_id.get_raw_id())
+                                     : PublicRsaKeySharedMain::create(G()->is_test_dc());
     } else {
       auto public_rsa_key_cdn = std::make_shared<PublicRsaKeySharedCdn>(dc_id);
       send_closure_later(public_rsa_key_watchdog_, &PublicRsaKeyWatchdog::add_public_rsa_key, public_rsa_key_cdn);
@@ -397,12 +406,13 @@ bool NetQueryDispatcher::get_use_pfs() {
 
 NetQueryDispatcher::NetQueryDispatcher(const std::function<ActorShared<>()> &create_reference) {
   auto s_main_dc_id = G()->td_db()->get_binlog_pmc()->get("main_dc_id");
-  if (!s_main_dc_id.empty()) {
-    main_dc_id_ = to_integer<int32>(s_main_dc_id);
-  } else if (blah::is_active()) {
-    // BLAH: a Blah deployment need not have a datacenter 1, so a fresh client
-    // starts on the one C3 lists first instead of the Telegram default.
-    main_dc_id_ = blah::get_dc_config().default_dc_id;
+  const auto &configuration = G()->network_configuration();
+  auto stored_dc_id = to_integer<int32>(s_main_dc_id);
+  if (DcId::is_valid(stored_dc_id) &&
+      (!configuration || configuration->contains(DcId::internal(stored_dc_id)))) {
+    main_dc_id_ = stored_dc_id;
+  } else if (configuration) {
+    main_dc_id_ = configuration->default_dc_id;
   }
   delayer_ = create_actor<NetQueryDelayer>("NetQueryDelayer", create_reference());
   interceptor_ = create_actor<NetQueryInterceptor>("NetQueryInterceptor", create_reference());
@@ -473,6 +483,10 @@ void NetQueryDispatcher::try_fix_migrate(NetQueryPtr &net_query) {
       LOG(ERROR) << "Receive invalid DC ID in " << error_message;
       return;
     }
+    if (G()->network_configuration() && !G()->network_configuration()->contains(DcId::internal(new_dc_id))) {
+      net_query->set_error(Status::Error(400, "NETWORK_DC_UNCONFIGURED"));
+      return;
+    }
     net_query->resend(DcId::internal(new_dc_id));
     return;
   }
@@ -480,6 +494,12 @@ void NetQueryDispatcher::try_fix_migrate(NetQueryPtr &net_query) {
   for (auto &prefix : prefixes) {
     if (error_message.substr(0, prefix.size()) == prefix) {
       auto new_main_dc_id = to_integer<int32>(error_message.substr(prefix.size()));
+      if (!DcId::is_valid(new_main_dc_id) ||
+          (G()->network_configuration() &&
+           !G()->network_configuration()->contains(DcId::internal(new_main_dc_id)))) {
+        net_query->set_error(Status::Error(400, "NETWORK_DC_UNCONFIGURED"));
+        return;
+      }
       set_main_dc_id(new_main_dc_id);
 
       if (!net_query->dc_id().is_main()) {
@@ -496,6 +516,11 @@ void NetQueryDispatcher::try_fix_migrate(NetQueryPtr &net_query) {
 void NetQueryDispatcher::set_main_dc_id(int32 new_main_dc_id) {
   if (!DcId::is_valid(new_main_dc_id)) {
     LOG(ERROR) << "Receive wrong DC " << new_main_dc_id;
+    return;
+  }
+  if (G()->network_configuration() &&
+      !G()->network_configuration()->contains(DcId::internal(new_main_dc_id))) {
+    LOG(ERROR) << "Reject unconfigured main datacenter " << new_main_dc_id;
     return;
   }
   if (new_main_dc_id == main_dc_id_.load(std::memory_order_relaxed)) {

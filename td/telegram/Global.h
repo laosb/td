@@ -30,6 +30,10 @@
 
 namespace td {
 
+namespace blah {
+struct DcConfig;
+}
+
 class AccountManager;
 class AnimationsManager;
 class AttachMenuManager;
@@ -123,6 +127,13 @@ class Global final : public ActorContext {
   void log_out(Slice reason);
 
   void close_all(bool destroy_flag, Promise<> on_finished);
+
+  void set_network_configuration(std::shared_ptr<const blah::DcConfig> configuration) {
+    network_configuration_ = std::move(configuration);
+  }
+  const std::shared_ptr<const blah::DcConfig> &network_configuration() const {
+    return network_configuration_;
+  }
 
   Status init(ActorId<Td> td, unique_ptr<TdDb> td_db_ptr) TD_WARN_UNUSED_RESULT;
 
@@ -761,6 +772,7 @@ class Global final : public ActorContext {
   void notify_speed_limited(bool is_upload);
 
  private:
+  std::shared_ptr<const blah::DcConfig> network_configuration_;
   std::shared_ptr<DhConfig> dh_config_;
 
   unique_ptr<TdDb> td_db_;

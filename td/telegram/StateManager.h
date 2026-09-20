@@ -40,7 +40,10 @@ class StateManager final : public mtproto::ConnectionManager {
     }
   };
 
-  explicit StateManager(ActorShared<> parent) : parent_(std::move(parent)) {
+  explicit StateManager(ActorShared<> parent, NetType initial_network_type = NetType::Unknown)
+      : parent_(std::move(parent))
+      , network_flag_(initial_network_type != NetType::None)
+      , network_type_(initial_network_type) {
   }
 
   void on_synchronized(bool is_synchronized);

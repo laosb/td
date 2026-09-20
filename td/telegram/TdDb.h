@@ -55,6 +55,7 @@ class TdDb {
   struct Parameters {
     DbKey encryption_key_;
     string database_directory_;
+    string database_namespace_;
     string files_directory_;
     bool is_test_dc_ = false;
     bool use_file_database_ = false;

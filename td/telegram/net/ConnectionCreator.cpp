@@ -1011,6 +1011,12 @@ void ConnectionCreator::client_wakeup(uint32 hash) {
 }
 
 void ConnectionCreator::on_dc_options(DcOptions new_dc_options) {
+  if (G()->network_configuration()) {
+    // Server and previously persisted endpoint lists cannot extend application trust.
+    dc_options_set_.reset();
+    add_dc_options(DcOptions());
+    return;
+  }
   auto seed = G()->get_option_integer("my_id");
   std::stable_sort(new_dc_options.dc_options.begin(), new_dc_options.dc_options.end(),
                    [seed](const DcOption &lhs, const DcOption &rhs) {
@@ -1045,12 +1051,18 @@ void ConnectionCreator::on_dc_options(DcOptions new_dc_options) {
 
 void ConnectionCreator::add_dc_options(DcOptions &&new_dc_options) {
   dc_options_set_.add_dc_options(get_default_dc_options(G()->is_test_dc()));
+  if (G()->network_configuration()) {
+    return;
+  }
 #if !TD_EMSCRIPTEN  // FIXME
   dc_options_set_.add_dc_options(std::move(new_dc_options));
 #endif
 }
 
 void ConnectionCreator::on_dc_update(DcId dc_id, string ip_port, Promise<> promise) {
+  if (G()->network_configuration()) {
+    return promise.set_error(400, "NETWORK_CONFIGURATION_IMMUTABLE");
+  }
   if (!dc_id.is_exact()) {
     return promise.set_error("Invalid dc_id");
   }
@@ -1219,9 +1231,8 @@ void ConnectionCreator::hangup() {
 }
 
 DcOptions ConnectionCreator::get_default_dc_options(bool is_test) {
-  // BLAH: the datacenters C3 published, in place of Telegram's hardcoded ones.
-  if (blah::is_active()) {
-    return blah::get_dc_config().dc_options;
+  if (G()->network_configuration()) {
+    return G()->network_configuration()->dc_options;
   }
   DcOptions res;
   enum class HostType : int32 { IPv4, IPv6, Url };

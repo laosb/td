@@ -6,6 +6,8 @@
 //
 #include "td/telegram/net/ProxyChecker.h"
 
+#include "td/telegram/Global.h"
+#include "td/telegram/net/BlahDcConfig.h"
 #include "td/telegram/net/PublicRsaKeySharedMain.h"
 
 #include "td/mtproto/DhCallback.h"
@@ -28,6 +30,10 @@ ProxyChecker::ProxyChecker(ActorShared<> parent) : parent_(std::move(parent)) {
 
 void ProxyChecker::test_proxy(Proxy &&proxy, int32 dc_id, double timeout, Promise<Unit> &&promise) {
   auto start_time = Time::now();
+  const auto &configuration = G()->network_configuration();
+  if (configuration && (!DcId::is_valid(dc_id) || !configuration->contains(DcId::internal(dc_id)))) {
+    return promise.set_error(400, "NETWORK_DC_UNCONFIGURED");
+  }
 
   IPAddress ip_address;
   auto status = ip_address.init_host_port(proxy.server(), proxy.port());
@@ -55,6 +61,8 @@ void ProxyChecker::test_proxy(Proxy &&proxy, int32 dc_id, double timeout, Promis
   auto request = make_unique<TestProxyRequest>();
   request->proxy_ = std::move(proxy);
   request->dc_id_ = static_cast<int16>(dc_id);
+  request->public_rsa_key_ = configuration ? configuration->public_keys.at(dc_id)
+                                         : PublicRsaKeySharedMain::create(false);
   request->promise_ = std::move(promise);
 
   auto connection_promise =
@@ -88,6 +96,9 @@ void ProxyChecker::on_test_proxy_connection_data(uint64 request_id, Result<Conne
 
   class HandshakeContext final : public mtproto::AuthKeyHandshakeContext {
    public:
+    explicit HandshakeContext(std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key)
+        : public_rsa_key_(std::move(public_rsa_key)) {
+    }
     mtproto::DhCallback *get_dh_callback() final {
       return nullptr;
     }
@@ -96,14 +107,15 @@ void ProxyChecker::on_test_proxy_connection_data(uint64 request_id, Result<Conne
     }
 
    private:
-    std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key_ = PublicRsaKeySharedMain::create(false);
+    std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key_;
   };
   auto handshake = make_unique<mtproto::AuthKeyHandshake>(request->dc_id_, 3600);
   auto data = r_data.move_as_ok();
   auto raw_connection = mtproto::RawConnection::create(data.ip_address, std::move(data.buffered_socket_fd),
                                                        request->get_transport(), nullptr);
   request->child_ = create_actor<mtproto::HandshakeActor>(
-      "HandshakeActor", std::move(handshake), std::move(raw_connection), make_unique<HandshakeContext>(), 10.0,
+      "HandshakeActor", std::move(handshake), std::move(raw_connection),
+      td::make_unique<HandshakeContext>(request->public_rsa_key_), 10.0,
       PromiseCreator::lambda(
           [actor_id = actor_id(this), request_id](Result<unique_ptr<mtproto::RawConnection>> raw_connection) {
             send_closure(actor_id, &ProxyChecker::on_test_proxy_handshake_connection, request_id,

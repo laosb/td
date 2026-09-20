@@ -3,6 +3,7 @@ if ((CMAKE_MAJOR_VERSION LESS 3) OR (CMAKE_VERSION VERSION_LESS "3.10"))
 endif()
 
 set(TD_TEST_SOURCE
+  ${CMAKE_CURRENT_SOURCE_DIR}/network_configuration.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/country_info.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/db.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/http.cpp

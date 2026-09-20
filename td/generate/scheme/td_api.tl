@@ -11302,7 +11302,9 @@ getAuthorizationState = AuthorizationState;
 //@device_model Model of the device the application is being run on; must be non-empty
 //@system_version Version of the operating system the application is being run on. If empty, the version is automatically detected by TDLib
 //@application_version Application version; must be non-empty
-setTdlibParameters use_test_dc:Bool database_directory:string files_directory:string database_encryption_key:bytes use_file_database:Bool use_chat_info_database:Bool use_message_database:Bool use_secret_chats:Bool api_id:int32 api_hash:string system_language_code:string device_model:string system_version:string application_version:string = Ok;
+//@network_configuration Immutable application-supplied JSON datacenter endpoints and RSA public keys; empty to use the build/environment defaults. An explicit document requires database_namespace. Invalid documents fail initialization without falling back to Telegram
+//@database_namespace Opaque application database identity, at most 256 UTF-8 bytes; must match the identity previously bound to this database. A populated unbound database cannot be claimed. Keep identity independent of endpoint/key rotation
+setTdlibParameters use_test_dc:Bool database_directory:string files_directory:string database_encryption_key:bytes use_file_database:Bool use_chat_info_database:Bool use_message_database:Bool use_secret_chats:Bool api_id:int32 api_hash:string system_language_code:string device_model:string system_version:string application_version:string network_configuration:string database_namespace:string = Ok;
 
 //@description Sets the phone number of the user and sends an authentication code to the user. Works only when the current authorization state is authorizationStateWaitPhoneNumber,
 //-or if there is no pending authentication query and the current authorization state is authorizationStateWaitPremiumPurchase, authorizationStateWaitEmailAddress,

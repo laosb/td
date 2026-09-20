@@ -6,6 +6,9 @@
 //
 #include "td/telegram/Td.h"
 
+#include "td/telegram/net/BlahDcConfig.h"
+#include "td/utils/utf8.h"
+
 #include "td/telegram/AccountManager.h"
 #include "td/telegram/AlarmManager.h"
 #include "td/telegram/AnimationsManager.h"
@@ -864,6 +867,7 @@ void Td::init(Parameters parameters, Result<TdDb::OpenedDatabase> r_opened_datab
     return finish_set_parameters();
   }
 
+  G()->set_network_configuration(std::move(parameters.network_configuration_));
   G()->init(actor_id(this), std::move(events.database)).ensure();
 
   init_options_and_network();
@@ -1048,7 +1052,16 @@ void Td::process_binlog_events(TdDb::OpenedDatabase &&events) {
 
 void Td::init_options_and_network() {
   VLOG(td_init) << "Create StateManager";
-  state_manager_ = create_actor<StateManager>("State manager", create_reference());
+  // Seed the first observable network state before any actor can subscribe.
+  // Offline cache maintenance must not briefly expose Unknown/online while
+  // queued setNetworkType requests are being acknowledged.
+  auto initial_network_type = NetType::Unknown;
+  for (const auto &request : pending_preauthentication_requests_) {
+    if (request.second != nullptr && request.second->get_id() == td_api::setNetworkType::ID) {
+      initial_network_type = get_net_type(static_cast<const td_api::setNetworkType &>(*request.second).type_);
+    }
+  }
+  state_manager_ = create_actor<StateManager>("State manager", create_reference(), initial_network_type);
   G()->set_state_manager(state_manager_.get());
 
   VLOG(td_init) << "Create OptionManager";
@@ -1458,7 +1471,23 @@ Result<std::pair<Td::Parameters, TdDb::Parameters>> Td::get_parameters(
     return Status::Error(400, "Valid api_hash must be provided. Can be obtained at https://my.telegram.org");
   }
 
+  if (!check_utf8(parameters->network_configuration_) || !check_utf8(parameters->database_namespace_) ||
+      parameters->database_namespace_.size() > 256 || parameters->database_namespace_.find('\0') != string::npos) {
+    return Status::Error(400, "Invalid network configuration or database namespace encoding/size");
+  }
+  if (!parameters->network_configuration_.empty() && parameters->database_namespace_.empty()) {
+    return Status::Error(400, "DATABASE_NAMESPACE_REQUIRED");
+  }
+  auto network_configuration = parameters->network_configuration_.empty()
+                                   ? blah::default_dc_config()
+                                   : blah::parse_dc_config(std::move(parameters->network_configuration_));
+  if (network_configuration.is_error()) {
+    return Status::Error(400, PSTRING() << "NETWORK_CONFIGURATION_INVALID: " << network_configuration.error().message());
+  }
+
   std::pair<Parameters, TdDb::Parameters> result;
+  result.first.network_configuration_ = network_configuration.move_as_ok();
+  result.second.database_namespace_ = std::move(parameters->database_namespace_);
   result.first.api_id_ = parameters->api_id_;
   result.first.api_hash_ = std::move(parameters->api_hash_);
   result.first.use_secret_chats_ = parameters->use_secret_chats_;
