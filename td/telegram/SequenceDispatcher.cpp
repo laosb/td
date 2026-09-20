@@ -20,6 +20,7 @@
 #include "td/utils/SliceBuilder.h"
 #include "td/utils/Status.h"
 #include "td/utils/StringBuilder.h"
+#include "td/utils/Time.h"
 
 #include <limits>
 
@@ -148,7 +149,7 @@ void SequenceDispatcher::on_result(NetQueryPtr query) {
     query->last_timeout_ = 0;
   }
 
-  if (query->is_error() && (query->error().code() == NetQuery::ResendInvokeAfter ||
+  if (!query->is_rpc_interception_terminal() && query->is_error() && (query->error().code() == NetQuery::ResendInvokeAfter ||
                             (query->error().code() == 400 && (query->error().message() == "MSG_WAIT_FAILED" ||
                                                               query->error().message() == "MSG_WAIT_TIMEOUT")))) {
     VLOG(net_query) << "Resend " << query;
@@ -299,7 +300,14 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
     node.net_query->debug("Waiting at SequenceDispatcher");
     node.net_query_ref = node.net_query.get_weak();
     node.callback = std::move(callback);
-    scheduler_.create_task(chain_ids, std::move(node));
+    auto completion_barrier = node.net_query->rpc_interception_configuration() != nullptr;
+    auto deadline = node.net_query->rpc_interception_deadline();
+    auto task_id = scheduler_.create_task(chain_ids, std::move(node), completion_barrier);
+    if (completion_barrier) {
+      // The query already holds a client-wide reservation, including time spent
+      // waiting behind ordinary requests which may be stalled by the network.
+      CHECK(queued_interceptions_.insert(task_id, deadline, task_id));
+    }
     loop();
   }
 
@@ -317,6 +325,40 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
   ChainScheduler<Node> scheduler_;
 
   using TaskId = ChainScheduler<Node>::TaskId;
+  RpcInterceptionPending<TaskId, TaskId> queued_interceptions_;
+
+  void expire_queued_interceptions() {
+    if (queued_interceptions_.empty()) {
+      return;
+    }
+    auto now = Time::now();
+    auto configuration = G()->net_query_dispatcher().rpc_interception_configuration();
+    vector<TaskId> finished;
+    queued_interceptions_.remove_if(
+        [&](auto &entry) {
+          auto &query = scheduler_.get_task_extra(entry.value)->net_query;
+          if (query->update_is_ready()) {
+            query->set_error(Status::Error(400, "RPC_INTERCEPTION_CANCELED"));
+          } else if (query->rpc_interception_configuration() != configuration) {
+            query->set_error(Status::Error(400, "RPC_INTERCEPTION_CONFIGURATION_CHANGED"));
+          } else if (entry.deadline <= now) {
+            query->set_error(Status::Error(408, "RPC_INTERCEPTION_EXPIRED"));
+          } else {
+            return false;
+          }
+          query->set_rpc_interception_terminal();
+          return true;
+        },
+        [&](TaskId id, TaskId) { finished.push_back(id); });
+    // Pause every expired task before callbacks can finish a predecessor and
+    // make one of the other expired tasks eligible for dispatch.
+    for (auto id : finished) {
+      scheduler_.pause_task(id);
+    }
+    for (auto id : finished) {
+      try_resend(id);
+    }
+  }
 
   bool check_timeout(Node &node) {
     auto &net_query = node.net_query;
@@ -366,7 +408,7 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
       }
     }
 
-    if (query->is_error() && (query->error().code() == NetQuery::ResendInvokeAfter ||
+    if (!query->is_rpc_interception_terminal() && query->is_error() && (query->error().code() == NetQuery::ResendInvokeAfter ||
                               (query->error().code() == 400 && (query->error().message() == "MSG_WAIT_FAILED" ||
                                                                 query->error().message() == "MSG_WAIT_TIMEOUT")))) {
       VLOG(net_query) << "Resend " << query;
@@ -380,6 +422,7 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
   }
 
   void try_resend(TaskId task_id) {
+    queued_interceptions_.erase(task_id);
     auto &node = *scheduler_.get_task_extra(task_id);
     if (node.callback.empty()) {
       auto query = std::move(node.net_query);
@@ -417,6 +460,16 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
 
   void loop() final {
     flush_pending_queries();
+    expire_queued_interceptions();
+    if (queued_interceptions_.empty()) {
+      cancel_timeout();
+    } else {
+      set_timeout_in(0.1);
+    }
+  }
+
+  void timeout_expired() final {
+    loop();
   }
 
   void tear_down() final {
@@ -436,6 +489,7 @@ class MultiSequenceDispatcherImpl final : public MultiSequenceDispatcher {
         break;
       }
       auto task = o_task.unwrap();
+      queued_interceptions_.erase(task.task_id);
       auto &node = *scheduler_.get_task_extra(task.task_id);
       CHECK(!node.net_query.empty());
 

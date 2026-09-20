@@ -210,6 +210,9 @@ bool Td::is_preinitialization_request(int32 id) {
 
 bool Td::is_preauthentication_request(int32 id) {
   switch (id) {
+    case td_api::setRpcInterception::ID:
+    case td_api::completeRpcInterception::ID:
+    case td_api::failRpcInterception::ID:
     case td_api::getInternalLink::ID:
     case td_api::getInternalLinkType::ID:
     case td_api::getLocalizationTargetInfo::ID:
@@ -780,6 +783,9 @@ void Td::close_impl(bool destroy_flag) {
   destroy_flag_ |= destroy_flag;
   if (close_flag_) {
     return;
+  }
+  if (G()->have_net_query_dispatcher()) {
+    G()->net_query_dispatcher().cancel_rpc_interceptions();
   }
 
   LOG(WARNING) << (destroy_flag ? "Destroy" : "Close") << " Td in state " << static_cast<int32>(state_);

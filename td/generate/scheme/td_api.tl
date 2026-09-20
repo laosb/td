@@ -16355,3 +16355,27 @@ prepareDiemInvocation layer:int32 query:bytes request_id:bytes device_id:bytes =
 //@description Submits an application-approved Diem action proof. No private key is passed to TDLib
 //@statement Exact prepared statement @manifest Exact verified mapping manifest @proof Device action proof over the statement
 invokeDiemSignedQuery statement:bytes manifest:bytes proof:bytes = DiemInvocationResult;
+
+---types---
+
+//@description The application must execute an intercepted RPC and complete or fail its continuation. The original request is never sent by TDLib. The application is responsible for approval and for authenticating the response
+//@interception_id Single-use continuation identifier, scoped to this TDLib client @layer Original Telegram API layer @constructor_id Signed 32-bit TL constructor identifier @query Exact uncompressed boxed query, at most 131072 bytes @expires_in Remaining time to complete the continuation, in seconds
+updateRpcInterceptionRequired interception_id:int53 layer:int32 constructor_id:int32 query:bytes expires_in:double = Update;
+
+//@description An intercepted RPC expired or was canceled. Stop approval and execution if still possible; an already committed remote operation cannot be undone. Late completion is rejected
+//@interception_id Identifier from updateRpcInterceptionRequired @error Terminal error delivered to the original request handler
+updateRpcInterceptionCanceled interception_id:int53 error:error = Update;
+
+---functions---
+
+//@description Replaces this client's RPC interception configuration. Available before authorization, after setting TDLib parameters. Existing intercepted requests are canceled. Configure before creating protected requests; configuration is not persisted. Explicitly prefixed requests are unsupported and fail closed
+//@constructor_ids Up to 64 signed 32-bit Telegram RPC constructor identifiers; an empty list disables interception for newly created queries @timeout Maximum time in seconds from query creation to completion, 1-120; at most 64 selected queries per client, including queued queries, can await completion
+setRpcInterception constructor_ids:vector<int32> timeout:int32 = Ok;
+
+//@description Completes an intercepted RPC through its original TDLib result handler, preserving normal client state transitions. Available before authorization. The application must authenticate the response and its association with the exact intercepted query
+//@interception_id Identifier from updateRpcInterceptionRequired; accepted only once @result Original RPC result bytes, 4-131072 bytes; parsed by the original handler
+completeRpcInterception interception_id:int53 result:bytes = Ok;
+
+//@description Fails an intercepted RPC through its original TDLib error handler. Available before authorization. This is a terminal error; TDLib never retries the unsigned original query
+//@interception_id Identifier from updateRpcInterceptionRequired; accepted only once @error Application or remote error; code 100-599 except reserved codes 202-204, UTF-8 message at most 1024 bytes
+failRpcInterception interception_id:int53 error:error = Ok;

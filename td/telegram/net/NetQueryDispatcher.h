@@ -28,6 +28,7 @@ class DcAuthManager;
 class MultiSequenceDispatcher;
 class NetQueryDelayer;
 class NetQueryVerifier;
+class NetQueryInterceptor;
 class PublicRsaKeyWatchdog;
 class SessionMultiProxy;
 
@@ -59,11 +60,23 @@ class NetQueryDispatcher {
 
   void set_verification_token(int64 verification_id, string &&token, Promise<Unit> &&promise);
 
+  void set_rpc_interception(vector<int32> constructors, int32 timeout, Promise<Unit> promise);
+  std::shared_ptr<const RpcInterceptionConfiguration> rpc_interception_configuration() const {
+    return std::atomic_load(&rpc_interception_configuration_);
+  }
+  void complete_rpc_interception(int64 id, Result<BufferSlice> result, Promise<Unit> promise);
+  void complete_intercepted_query(NetQueryPtr query);
+  void cancel_rpc_interceptions();
+
  private:
   std::atomic<bool> stop_flag_{false};
   bool need_destroy_auth_key_{false};
   ActorOwn<NetQueryDelayer> delayer_;
   ActorOwn<NetQueryVerifier> verifier_;
+  ActorOwn<NetQueryInterceptor> interceptor_;
+  std::shared_ptr<const RpcInterceptionConfiguration> rpc_interception_configuration_;
+  std::shared_ptr<RpcInterceptionBudget> rpc_interception_budget_ = std::make_shared<RpcInterceptionBudget>();
+  bool rpc_interception_stopped_{false};
   ActorOwn<DcAuthManager> dc_auth_manager_;
   ActorOwn<MultiSequenceDispatcher> sequence_dispatcher_;
   struct Dc {

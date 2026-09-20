@@ -8,6 +8,7 @@
 
 #include "td/telegram/AuthManager.h"
 #include "td/telegram/Global.h"
+#include "td/telegram/net/NetQueryDispatcher.h"
 #include "td/telegram/Td.h"
 #include "td/telegram/telegram_api.h"
 
@@ -19,6 +20,7 @@
 #include "td/utils/logging.h"
 #include "td/utils/Slice.h"
 #include "td/utils/Storer.h"
+#include "td/utils/Time.h"
 
 namespace td {
 
@@ -63,6 +65,20 @@ NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::object_ptr<te
 
   size_t min_gzipped_size = 128;
   int32 tl_constructor = function.get_id();
+  auto interception = G()->have_net_query_dispatcher()
+                          ? G()->net_query_dispatcher().rpc_interception_configuration()
+                          : nullptr;
+  if (interception && !interception->contains(tl_constructor)) {
+    interception.reset();
+  }
+  // Capture the exact function before compression. Unsupported prefixes and
+  // oversized queries remain selected but have no payload, so they fail closed.
+  BufferSlice interception_query;
+  auto interception_reservation = interception ? interception->budget->reserve() : nullptr;
+  if (interception_reservation && prefix == nullptr && slice.size() >= 4 &&
+      slice.size() <= RpcInterceptionConfiguration::MAX_BYTES) {
+    interception_query = slice.clone();
+  }
   int32 total_timeout_limit = 60;
 
   if (Scheduler::instance() != nullptr && current_scheduler_id_ == Scheduler::instance()->sched_id() &&
@@ -104,6 +120,11 @@ NetQueryPtr NetQueryCreator::create(uint64 id, const telegram_api::object_ptr<te
   auto query = object_pool_.create(id, std::move(slice), dc_id, type, auth_flag, gzip_flag, tl_constructor,
                                    total_timeout_limit, net_query_stats_.get(), std::move(chain_ids));
   query->set_cancellation_token(query.generation());
+  if (interception) {
+    auto deadline = Time::now() + interception->timeout;
+    query->set_rpc_interception(std::move(interception), std::move(interception_query), deadline,
+                                std::move(interception_reservation));
+  }
   return query;
 }
 

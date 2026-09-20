@@ -359,6 +359,7 @@ set(TDLIB_SOURCE_PART1
   td/telegram/AuthManager.cpp
   td/telegram/AuthManagerDiem.cpp
   td/telegram/RequestsDiem.cpp
+  td/telegram/RequestsRpcInterception.cpp
   td/telegram/AutoDownloadSettings.cpp
   td/telegram/AutosaveManager.cpp
   td/telegram/BackgroundInfo.cpp
@@ -557,6 +558,7 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/NetQueryDispatcher.cpp
   td/telegram/net/NetQueryStats.cpp
   td/telegram/net/NetQueryVerifier.cpp
+  td/telegram/net/NetQueryInterceptor.cpp
   td/telegram/net/NetStatsManager.cpp
   td/telegram/net/Proxy.cpp
   td/telegram/net/ProxyChecker.cpp
@@ -975,6 +977,8 @@ set(TDLIB_SOURCE_PART2
   td/telegram/net/NetQueryDispatcher.h
   td/telegram/net/NetQueryStats.h
   td/telegram/net/NetQueryVerifier.h
+  td/telegram/net/NetQueryInterceptor.h
+  td/telegram/net/RpcInterception.h
   td/telegram/net/NetStatsManager.h
   td/telegram/net/NetType.h
   td/telegram/net/Proxy.h

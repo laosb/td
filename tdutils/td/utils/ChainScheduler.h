@@ -35,7 +35,7 @@ class ChainScheduler final : public ChainSchedulerBase {
   using TaskId = uint64;
   using ChainId = uint64;
 
-  TaskId create_task(Span<ChainId> chains, ExtraT extra = {});
+  TaskId create_task(Span<ChainId> chains, ExtraT extra = {}, bool completion_barrier = false);
 
   ExtraT *get_task_extra(TaskId task_id);
 
@@ -137,6 +137,7 @@ class ChainScheduler final : public ChainSchedulerBase {
   };
   struct Task {
     enum class State { Pending, Active, Paused } state{State::Pending};
+    bool completion_barrier{false};
     vector<TaskChainInfo> chains;
     ExtraT extra{};
   };
@@ -163,6 +164,12 @@ class ChainScheduler final : public ChainSchedulerBase {
       auto o_parent = task_chain_info.chain_info->chain.get_parent(&task_chain_info.chain_node);
 
       if (o_parent) {
+        // A locally completed operation has no MTProto message ID for invokeAfter.
+        // Wait for its predecessors to finish, and hold its successors until it
+        // finishes. Normal tasks retain their existing pipelined admission.
+        if (task->completion_barrier || tasks_.get(o_parent.value()->task_id)->completion_barrier) {
+          return;
+        }
         if (o_parent.value()->generation != task_chain_info.chain_info->generation) {
           return;
         }
@@ -262,10 +269,12 @@ class ChainScheduler final : public ChainSchedulerBase {
 };
 
 template <class ExtraT>
-typename ChainScheduler<ExtraT>::TaskId ChainScheduler<ExtraT>::create_task(Span<ChainId> chains, ExtraT extra) {
+typename ChainScheduler<ExtraT>::TaskId ChainScheduler<ExtraT>::create_task(Span<ChainId> chains, ExtraT extra,
+                                                                        bool completion_barrier) {
   auto task_id = tasks_.create();
   Task &task = *tasks_.get(task_id);
   task.extra = std::move(extra);
+  task.completion_barrier = completion_barrier;
   task.chains = transform(chains, [&](ChainId chain_id) {
     CHECK(chain_id != 0);
     TaskChainInfo task_chain_info;

@@ -13,6 +13,7 @@
 #include "td/telegram/net/NetQuery.h"
 #include "td/telegram/net/NetQueryDelayer.h"
 #include "td/telegram/net/NetQueryVerifier.h"
+#include "td/telegram/net/NetQueryInterceptor.h"
 #include "td/telegram/net/PublicRsaKeySharedCdn.h"
 #include "td/telegram/net/PublicRsaKeySharedMain.h"
 #include "td/telegram/net/PublicRsaKeyWatchdog.h"
@@ -60,6 +61,16 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
   if (check_stop_flag(net_query)) {
     return;
   }
+  if (net_query->is_rpc_interception_terminal()) {
+    if (!net_query->is_ready()) {
+      net_query->set_error(Status::Error(400, "RPC_INTERCEPTION_ALREADY_COMPLETED"));
+    }
+    return complete_net_query(std::move(net_query));
+  }
+  if (net_query->rpc_interception_configuration() && !net_query->has_rpc_interception_reservation()) {
+    net_query->set_error(Status::Error(429, "RPC_INTERCEPTION_LIMIT"));
+    return complete_intercepted_query(std::move(net_query));
+  }
   if (false && G()->get_option_boolean("test_flood_wait")) {
     net_query->set_error(Status::Error(429, "Too Many Requests: retry after 10"));
     return complete_net_query(std::move(net_query));
@@ -89,6 +100,16 @@ void NetQueryDispatcher::dispatch(NetQueryPtr net_query) {
       return;
     }
     send_closure_later(sequence_dispatcher_, &MultiSequenceDispatcher::send, std::move(net_query));
+    return;
+  }
+
+  if (net_query->rpc_interception_configuration()) {
+    std::lock_guard<std::mutex> guard(mutex_);
+    if (check_stop_flag(net_query)) {
+      return;
+    }
+    // Interception never sends the original request or consumes its wire retries.
+    send_closure_later(interceptor_, &NetQueryInterceptor::intercept, std::move(net_query));
     return;
   }
 
@@ -288,6 +309,7 @@ void NetQueryDispatcher::stop() {
   stop_flag_ = true;
   delayer_.reset();
   verifier_.reset();
+  interceptor_.reset();
   for (auto &dc : dcs_) {
     dc.main_session_.reset();
     dc.upload_session_.reset();
@@ -325,6 +347,9 @@ void NetQueryDispatcher::destroy_auth_keys(Promise<> promise) {
   std::lock_guard<std::mutex> guard(mutex_);
   LOG(INFO) << "Destroy auth keys";
   need_destroy_auth_key_ = true;
+  rpc_interception_stopped_ = true;
+  std::atomic_store(&rpc_interception_configuration_, std::shared_ptr<const RpcInterceptionConfiguration>());
+  send_closure_later(interceptor_, &NetQueryInterceptor::cancel_all);
   for (int32 i = 1; i < DcId::MAX_RAW_DC_ID; i++) {
     if (is_dc_inited(i) && dcs_[i - 1].id_.is_internal()) {
       send_closure_later(dcs_[i - 1].main_session_, &SessionMultiProxy::destroy_auth_key);
@@ -380,6 +405,7 @@ NetQueryDispatcher::NetQueryDispatcher(const std::function<ActorShared<>()> &cre
     main_dc_id_ = blah::get_dc_config().default_dc_id;
   }
   delayer_ = create_actor<NetQueryDelayer>("NetQueryDelayer", create_reference());
+  interceptor_ = create_actor<NetQueryInterceptor>("NetQueryInterceptor", create_reference());
 #if TD_ANDROID || TD_DARWIN_IOS || TD_DARWIN_VISION_OS || TD_DARWIN_WATCH_OS || TD_TEST_VERIFICATION
   verifier_ = create_actor<NetQueryVerifier>("NetQueryVerifier", create_reference());
 #endif
@@ -392,6 +418,51 @@ NetQueryDispatcher::NetQueryDispatcher(const std::function<ActorShared<>()> &cre
 }
 
 NetQueryDispatcher::~NetQueryDispatcher() = default;
+
+void NetQueryDispatcher::set_rpc_interception(vector<int32> constructors, int32 timeout, Promise<Unit> promise) {
+  auto result = RpcInterceptionConfiguration::create(std::move(constructors), timeout, rpc_interception_budget_);
+  if (result.is_error()) {
+    return promise.set_error(result.move_as_error());
+  }
+  auto configuration = result.move_as_ok();
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (stop_flag_ || rpc_interception_stopped_) {
+    return promise.set_error(Global::request_aborted_error());
+  }
+  // Queue configuration before publishing it to creators on other schedulers.
+  send_closure_later(interceptor_, &NetQueryInterceptor::configure, configuration, std::move(promise));
+  std::atomic_store(&rpc_interception_configuration_, std::move(configuration));
+}
+
+void NetQueryDispatcher::complete_rpc_interception(int64 id, Result<BufferSlice> result, Promise<Unit> promise) {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (stop_flag_ || rpc_interception_stopped_) {
+    return promise.set_error(Global::request_aborted_error());
+  }
+  send_closure_later(interceptor_, &NetQueryInterceptor::complete, id, std::move(result), std::move(promise));
+}
+
+void NetQueryDispatcher::complete_intercepted_query(NetQueryPtr query) {
+  query->set_rpc_interception_terminal();
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (check_stop_flag(query)) {
+    return;
+  }
+  if (rpc_interception_stopped_) {
+    query->set_error(Global::request_aborted_error());
+  }
+  complete_net_query(std::move(query));
+}
+
+void NetQueryDispatcher::cancel_rpc_interceptions() {
+  std::lock_guard<std::mutex> guard(mutex_);
+  if (stop_flag_) {
+    return;
+  }
+  rpc_interception_stopped_ = true;
+  std::atomic_store(&rpc_interception_configuration_, std::shared_ptr<const RpcInterceptionConfiguration>());
+  send_closure_later(interceptor_, &NetQueryInterceptor::cancel_all);
+}
 
 void NetQueryDispatcher::try_fix_migrate(NetQueryPtr &net_query) {
   auto error_message = net_query->error().message();
