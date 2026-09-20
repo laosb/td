@@ -992,6 +992,8 @@ void AuthManager::do_delete_account(uint64 query_id, string reason,
 }
 
 void AuthManager::on_closing(bool destroy_flag) {
+  cancel_query(net_query_ref_);
+  net_query_ref_ = {};
   auto new_state = destroy_flag ? State::LoggingOut : State::Closing;
   if (new_state != state_) {
     update_state(new_state);
@@ -1013,6 +1015,8 @@ void AuthManager::clear_auth_state() {
 }
 
 void AuthManager::on_new_query(uint64 query_id) {
+  cancel_query(net_query_ref_);
+  net_query_ref_ = {};
   if (query_id_ != 0) {
     on_current_query_error(Status::Error(400, "Another authorization query has started"));
   }
@@ -1020,10 +1024,11 @@ void AuthManager::on_new_query(uint64 query_id) {
   net_query_id_ = 0;
   net_query_type_ = NetQueryType::None;
   query_id_ = query_id;
-  // TODO: cancel older net_query
 }
 
 void AuthManager::on_current_query_error(Status status) {
+  cancel_query(net_query_ref_);
+  net_query_ref_ = {};
   if (query_id_ == 0) {
     return;
   }
@@ -1055,7 +1060,8 @@ void AuthManager::send_ok(uint64 query_id) {
 }
 
 void AuthManager::start_net_query(NetQueryType net_query_type, NetQueryPtr net_query) {
-  // TODO: cancel old net_query?
+  cancel_query(net_query_ref_);
+  net_query_ref_ = net_query.get_weak();
   net_query_type_ = net_query_type;
   net_query_id_ = net_query->id();
   G()->net_query_dispatcher().dispatch_with_callback(std::move(net_query), actor_shared(this));
@@ -1448,6 +1454,8 @@ void AuthManager::on_authorization_lost(string source) {
 }
 
 void AuthManager::destroy_auth_keys() {
+  cancel_query(net_query_ref_);
+  net_query_ref_ = {};
   if (state_ == State::Closing || state_ == State::DestroyingKeys) {
     LOG(INFO) << "Already destroying auth keys";
     return;
@@ -1564,6 +1572,7 @@ void AuthManager::on_result(NetQueryPtr net_query) {
   LOG(INFO) << "Receive result of query " << net_query->id() << ", expecting " << net_query_id_ << " with type "
             << static_cast<int32>(net_query_type_);
   if (net_query->id() == net_query_id_) {
+    net_query_ref_ = {};
     net_query_id_ = 0;
     type = net_query_type_;
     net_query_type_ = NetQueryType::None;

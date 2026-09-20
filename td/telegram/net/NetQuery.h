@@ -9,6 +9,7 @@
 #include "td/telegram/net/DcId.h"
 #include "td/telegram/net/NetQueryCounter.h"
 #include "td/telegram/net/NetQueryStats.h"
+#include "td/telegram/net/RpcInterception.h"
 
 #include "td/actor/actor.h"
 #include "td/actor/SignalSlot.h"
@@ -88,6 +89,33 @@ class NetQuery final : public TsListNode<NetQueryDebug> {
 
   const BufferSlice &query() const {
     return query_;
+  }
+
+  void set_rpc_interception(std::shared_ptr<const RpcInterceptionConfiguration> configuration,
+                            BufferSlice query, double deadline,
+                            std::unique_ptr<RpcInterceptionBudget::Reservation> reservation) {
+    rpc_interception_configuration_ = std::move(configuration);
+    rpc_interception_query_ = std::move(query);
+    rpc_interception_deadline_ = deadline;
+    rpc_interception_reservation_ = std::move(reservation);
+  }
+  bool has_rpc_interception_reservation() const {
+    return rpc_interception_reservation_ != nullptr;
+  }
+  const std::shared_ptr<const RpcInterceptionConfiguration> &rpc_interception_configuration() const {
+    return rpc_interception_configuration_;
+  }
+  const BufferSlice &rpc_interception_query() const {
+    return rpc_interception_query_;
+  }
+  double rpc_interception_deadline() const {
+    return rpc_interception_deadline_;
+  }
+  bool is_rpc_interception_terminal() const {
+    return rpc_interception_terminal_;
+  }
+  void set_rpc_interception_terminal() {
+    rpc_interception_terminal_ = true;
   }
 
   const BufferSlice &ok() const {
@@ -275,6 +303,11 @@ class NetQuery final : public TsListNode<NetQueryDebug> {
   Status status_;
   uint64 id_ = 0;
   BufferSlice query_;
+  std::shared_ptr<const RpcInterceptionConfiguration> rpc_interception_configuration_;
+  std::unique_ptr<RpcInterceptionBudget::Reservation> rpc_interception_reservation_;
+  BufferSlice rpc_interception_query_;
+  double rpc_interception_deadline_ = 0;
+  bool rpc_interception_terminal_ = false;
   BufferSlice answer_;
   int32 tl_constructor_ = 0;
   int32 verification_prefix_length_ = 0;

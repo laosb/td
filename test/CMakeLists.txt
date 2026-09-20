@@ -12,6 +12,7 @@ set(TD_TEST_SOURCE
   ${CMAKE_CURRENT_SOURCE_DIR}/poll.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/query_merger.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/requested_dialog_type.cpp
+  ${CMAKE_CURRENT_SOURCE_DIR}/rpc_interception.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secret.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/secure_storage.cpp
   ${CMAKE_CURRENT_SOURCE_DIR}/set_with_position.cpp

@@ -90,6 +90,63 @@ TEST(ChainScheduler, Basic) {
   }
 }
 
+TEST(ChainScheduler, CompletionBarrier) {
+  td::ChainScheduler<int> scheduler;
+  auto first = scheduler.create_task({td::uint64{1}}, 1);
+  auto second = scheduler.create_task({td::uint64{1}}, 2);
+  auto barrier = scheduler.create_task({td::uint64{1}}, 3, true);
+  auto after = scheduler.create_task({td::uint64{1}}, 4);
+  auto unrelated = scheduler.create_task({td::uint64{2}}, 5);
+  ASSERT_EQ(first, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_EQ(second, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_EQ(unrelated, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_TRUE(!scheduler.start_next_task());
+
+  // Even an out-of-order parent completion cannot release the barrier early.
+  scheduler.finish_task(second);
+  ASSERT_TRUE(!scheduler.start_next_task());
+  scheduler.finish_task(first);
+  auto ready = scheduler.start_next_task().unwrap();
+  ASSERT_EQ(barrier, ready.task_id);
+  ASSERT_TRUE(ready.parents.empty());
+  ASSERT_TRUE(!scheduler.start_next_task());
+
+  // Retrying the barrier retains exclusivity. Cancellation uses finish_task.
+  scheduler.reset_task(barrier);
+  ASSERT_EQ(barrier, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_TRUE(!scheduler.start_next_task());
+  scheduler.finish_task(barrier);
+  ready = scheduler.start_next_task().unwrap();
+  ASSERT_EQ(after, ready.task_id);
+  ASSERT_TRUE(ready.parents.empty());
+  scheduler.finish_task(after);
+  scheduler.finish_task(unrelated);
+}
+
+TEST(ChainScheduler, CompletionBarrierAcrossChains) {
+  td::ChainScheduler<int> scheduler;
+  auto first = scheduler.create_task({td::uint64{1}}, 1);
+  auto second = scheduler.create_task({td::uint64{2}}, 2);
+  td::vector<td::uint64> both_chains{1, 2};
+  auto barrier = scheduler.create_task(both_chains, 3, true);
+  auto after_first = scheduler.create_task({td::uint64{1}}, 4);
+  auto after_second = scheduler.create_task({td::uint64{2}}, 5);
+  ASSERT_EQ(first, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_EQ(second, scheduler.start_next_task().unwrap().task_id);
+  scheduler.finish_task(first);
+  ASSERT_TRUE(!scheduler.start_next_task());
+  scheduler.finish_task(second);
+  ASSERT_EQ(barrier, scheduler.start_next_task().unwrap().task_id);
+  ASSERT_TRUE(!scheduler.start_next_task());
+  scheduler.finish_task(barrier);
+  td::vector<td::uint64> resumed;
+  while (auto ready = scheduler.start_next_task()) {
+    ASSERT_TRUE(ready.value().parents.empty());
+    resumed.push_back(ready.value().task_id);
+  }
+  ASSERT_EQ(td::vector<td::uint64>({after_first, after_second}), resumed);
+}
+
 struct ChainSchedulerQuery;
 using QueryPtr = std::shared_ptr<ChainSchedulerQuery>;
 using ChainId = td::ChainScheduler<QueryPtr>::ChainId;
