@@ -40,6 +40,7 @@ class ProxyChecker final : public NetQueryCallback {
   struct TestProxyRequest {
     Proxy proxy_;
     int16 dc_id_ = -1;
+    std::shared_ptr<mtproto::PublicRsaKeyInterface> public_rsa_key_;
     ActorOwn<> child_;
     Promise<Unit> promise_;
 

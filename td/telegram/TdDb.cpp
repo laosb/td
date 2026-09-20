@@ -6,6 +6,8 @@
 //
 #include "td/telegram/TdDb.h"
 
+#include "td/telegram/DatabaseNamespace.h"
+
 #include "td/telegram/AttachMenuManager.h"
 #include "td/telegram/DialogDb.h"
 #include "td/telegram/files/FileDb.h"
@@ -56,7 +58,7 @@ std::string get_sqlite_path(const TdDb::Parameters &parameters) {
 }
 
 Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_pmc, BinlogKeyValue<Binlog> &config_pmc,
-                   TdDb::OpenedDatabase &events, DbKey key) {
+                   TdDb::OpenedDatabase &events, DbKey key, bool &has_existing_data) {
   auto r_binlog_stat = stat(path);
   if (r_binlog_stat.is_ok()) {
     auto since_last_open = Clocks::system() - static_cast<double>(r_binlog_stat.ok().mtime_nsec_) * 1e-9;
@@ -69,6 +71,7 @@ Status init_binlog(Binlog &binlog, string path, BinlogKeyValue<Binlog> &binlog_p
   }
 
   auto callback = [&](const BinlogEvent &event) {
+    has_existing_data = true;
     switch (event.type_) {
       case LogEvent::HandlerType::SecretChats:
         events.to_secret_chats_manager.push_back(event.clone());
@@ -511,24 +514,34 @@ void TdDb::open_impl(Parameters parameters, Promise<OpenedDatabase> &&promise) {
   OpenedDatabase result;
 
   // Init pmc
-  Binlog *binlog_ptr = nullptr;
-  auto binlog = std::shared_ptr<Binlog>(new Binlog, [&](Binlog *ptr) { binlog_ptr = ptr; });
+  // Retain ownership on every early error (including a namespace refusal), so
+  // the binlog lock is released before returning the initialization error.
+  auto binlog_owner = make_unique<Binlog>();
+  auto binlog = std::shared_ptr<Binlog>(binlog_owner.get(), [](Binlog *) {});
 
   auto binlog_pmc = make_unique<BinlogKeyValue<Binlog>>();
   auto config_pmc = make_unique<BinlogKeyValue<Binlog>>();
   binlog_pmc->external_init_begin(static_cast<int32>(LogEvent::HandlerType::BinlogPmcMagic));
   config_pmc->external_init_begin(static_cast<int32>(LogEvent::HandlerType::ConfigPmcMagic));
 
+  bool has_existing_data = stat(get_sqlite_path(parameters)).is_ok();
   bool encrypt_binlog = !parameters.encryption_key_.is_empty();
   VLOG(td_init) << "Start binlog loading";
   TRY_STATUS_PROMISE(promise, init_binlog(*binlog, get_binlog_path(parameters), *binlog_pmc, *config_pmc, result,
-                                          std::move(parameters.encryption_key_)));
+                                          std::move(parameters.encryption_key_), has_existing_data));
   VLOG(td_init) << "Finish binlog loading";
 
   binlog_pmc->external_init_finish(binlog);
   VLOG(td_init) << "Finish initialization of binlog PMC";
   config_pmc->external_init_finish(binlog);
   VLOG(td_init) << "Finish initialization of config PMC";
+
+  auto stored_namespace = binlog_pmc->get("database_namespace");
+  TRY_STATUS_PROMISE(promise, check_database_namespace(parameters.database_namespace_, stored_namespace, has_existing_data));
+  if (!parameters.database_namespace_.empty() && stored_namespace.empty()) {
+    binlog_pmc->set("database_namespace", parameters.database_namespace_);
+    binlog_pmc->force_sync(Auto(), "Bind database namespace before opening SQLite");
+  }
 
   if (parameters.use_file_database_ && binlog_pmc->get("auth").empty()) {
     LOG(INFO) << "Destroy SQLite database, because wasn't authorized yet";
@@ -590,9 +603,8 @@ void TdDb::open_impl(Parameters parameters, Promise<OpenedDatabase> &&promise) {
   binlog_pmc.reset();
   config_pmc.reset();
 
-  CHECK(binlog_ptr != nullptr);
   VLOG(td_init) << "Create concurrent_binlog";
-  auto concurrent_binlog = std::make_shared<ConcurrentBinlog>(unique_ptr<Binlog>(binlog_ptr));
+  auto concurrent_binlog = std::make_shared<ConcurrentBinlog>(std::move(binlog_owner));
 
   VLOG(td_init) << "Init concurrent_binlog_pmc";
   concurrent_binlog_pmc->external_init_finish(concurrent_binlog);

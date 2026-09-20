@@ -31,6 +31,10 @@
 
 namespace td {
 
+namespace blah {
+struct DcConfig;
+}
+
 class AccountManager;
 class AlarmManager;
 class AnimationsManager;
@@ -441,6 +445,7 @@ class Td final : public Actor {
   static bool is_preauthentication_request(int32 id);
 
   struct Parameters {
+    std::shared_ptr<const blah::DcConfig> network_configuration_;
     int32 api_id_ = 0;
     string api_hash_;
     bool use_secret_chats_ = false;

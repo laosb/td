@@ -22,11 +22,26 @@ Unsupported signed methods are rejected by the server.
 Qualified public names such as `alice@two.example` retain dots in the domain
 during username normalization. Unqualified names keep upstream behavior.
 
-Applications configure their DC endpoints and pinned RSA public keys with
-`BLAH_DC_CONFIG` JSON at runtime, or `-DBLAH_DC_CONFIG_FILE=<path>` at build time.
-The document has a `dcs` array of `{id, rsaPublicKey, endpoints}` entries; each
-endpoint has `ip`, `port`, and `wsTlsOnly`. Put the home DC first. Builds never
-download a directory, and a configured but unusable document fails closed.
+Applications provide immutable per-client endpoints and RSA pins through
+`setTdlibParameters.network_configuration`, using JSON with a `dcs` array of
+`{id, rsaPublicKey, endpoints}` entries. Each endpoint has `ip`, `port`, and an
+optional `wsTlsOnly`; TDLib requires a supported TCP endpoint for every DC.
+`defaultDcId` selects the initial DC, otherwise the first entry is used. Configured
+clients accept only those endpoints and the matching DC's key, including after
+reopening; server updates and recovery services cannot extend that trust.
+
+An explicit document requires `database_namespace`, an opaque application cache
+identity checked after ordinary binlog integrity/format loading, before SQLite
+initialization or destruction and manager/event replay. A mismatched identity or
+populated unbound cache is refused. Applications own identity
+verification, cache paths, lifecycle journals and device secrets; endpoint/key
+rotation does not change cache identity by itself. Queue `setNetworkType(None)`
+before initialization when reopening a cache solely for offline maintenance.
+
+`BLAH_DC_CONFIG` at runtime and `-DBLAH_DC_CONFIG_FILE=<path>` at build time remain
+legacy default documents, snapshotted only when no explicit client document is
+supplied. Invalid documents return an initialization error without fallback.
+With no document configured, standard Telegram endpoints and keys remain available.
 
 TDLib (Telegram Database library) is a cross-platform library for building [Telegram](https://telegram.org) clients. It can be easily used from almost any programming language.
 
