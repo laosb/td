@@ -265,6 +265,36 @@ static bool is_alpha_digit_or_underscore_or_minus(uint32 code) {
 
 // This functions just implements corresponding regexps
 // All other fixes will be in other functions
+// Extends a handle ending at `ptr` over the `.label` runs of a Blah domain
+// name. A sentence's closing dot or a label a domain cannot hold ends it
+// before that dot; a handle with an underscore is no domain at all.
+static const unsigned char *match_domain_name_tail(const unsigned char *name_begin, const unsigned char *ptr,
+                                                   const unsigned char *end) {
+  auto is_label_char = [](unsigned char c) {
+    return is_alpha(static_cast<char>(c)) || is_digit(static_cast<char>(c)) || c == '-';
+  };
+  auto tail = ptr;
+  while (tail != end && *tail == '.' && tail + 1 != end && is_label_char(tail[1]) && tail[1] != '-') {
+    auto label_end = tail + 1;
+    while (label_end != end && is_label_char(*label_end)) {
+      label_end++;
+    }
+    if (label_end[-1] == '-' || label_end - tail - 1 > 63) {
+      break;
+    }
+    tail = label_end;
+  }
+  if (tail == ptr) {
+    return ptr;
+  }
+  for (auto it = name_begin; it != ptr; ++it) {
+    if (*it == '_') {
+      return nullptr;
+    }
+  }
+  return tail - name_begin <= 253 ? tail : nullptr;
+}
+
 static vector<Slice> match_mentions(Slice str) {
   vector<Slice> result;
   const unsigned char *begin = str.ubegin();
@@ -292,9 +322,15 @@ static vector<Slice> match_mentions(Slice str) {
     while (ptr != end && is_alpha_digit_or_underscore(*ptr)) {
       ptr++;
     }
+    auto name_end = ptr;
+    auto domain_end = match_domain_name_tail(mention_begin, ptr, end);
+    if (domain_end == nullptr) {
+      continue;
+    }
+    ptr = domain_end;
     auto mention_end = ptr;
     auto mention_size = mention_end - mention_begin;
-    if (mention_size < 2 || mention_size > 32) {
+    if (mention_size < 2 || (domain_end == name_end && mention_size > 32)) {
       continue;
     }
     uint32 next = 0;
@@ -348,9 +384,15 @@ static vector<Slice> match_bot_commands(Slice str) {
       while (ptr != end && is_alpha_digit_or_underscore(*ptr)) {
         ptr++;
       }
+      auto name_end = ptr;
+      auto domain_end = match_domain_name_tail(mention_begin, ptr, end);
+      if (domain_end == nullptr) {
+        continue;
+      }
+      ptr = domain_end;
       auto mention_end = ptr;
       auto mention_size = mention_end - mention_begin;
-      if (mention_size < 3 || mention_size > 32) {
+      if (mention_size < 3 || (domain_end == name_end && mention_size > 32)) {
         continue;
       }
       command_end = ptr;

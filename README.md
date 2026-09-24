@@ -19,8 +19,9 @@ operation before signing. The transport adapter in `td/telegram/RequestsDiem.cpp
 does not hold keys, approve automatically or bypass ordinary server permissions.
 Unsupported signed methods are rejected by the server.
 
-Qualified public names such as `alice@two.example` retain dots in the domain
-during username normalization. Unqualified names keep upstream behavior.
+Blah public names are domains, such as `alice.one.example`: username normalization
+keeps their dots, and mention and bot-command detection spans the whole name, stopping
+before a sentence's closing dot. Dotless handles remain for a DC's system accounts.
 
 Applications provide immutable per-client endpoints and RSA pins through
 `setTdlibParameters.network_configuration`, using JSON with a `dcs` array of
