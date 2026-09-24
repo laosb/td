@@ -47,6 +47,11 @@ TEST(MessageEntities, mention) {
   check_mention("@abcdefghijklmnopqrstuvwxyz123456", {"@abcdefghijklmnopqrstuvwxyz123456"});
   check_mention("@abcdefghijklmnopqrstuvwxyz1234567", {});
   check_mention("нет@mention", {});
+  // Blah names are domains; a closing dot or a bad label ends one.
+  check_mention("@alice.one.example.", {"@alice.one.example"});
+  check_mention("ask @News.One-Example.org, today", {"@News.One-Example.org"});
+  check_mention("@alice.-bad.example", {"@alice"});
+  check_mention("@al_ice.example", {});
   check_mention(
       "@ya @gif @wiki @vid @bing @pic @bold @imdb @ImDb @coub @like @vote @giff @cap ya cap @y @yar @bingg @bin",
       {"@gif", "@wiki", "@vid", "@bing", "@pic", "@bold", "@imdb", "@ImDb", "@coub", "@like", "@vote", "@giff",
@@ -74,6 +79,7 @@ TEST(MessageEntities, bot_command) {
   check_bot_command("/a@b", {});
   check_bot_command("/@bfdsa", {});
   check_bot_command("/test/", {});
+  check_bot_command("/start@helperbot.one.example", {"/start@helperbot.one.example"});
 }
 
 static void check_hashtag(const td::string &str, const td::vector<td::string> &expected) {

@@ -50,12 +50,9 @@ string clean_name(string str, size_t max_length) {
 }
 
 string clean_username(string str) {
+  // Blah names are domains, so a dot is part of the name rather than
+  // decoration to drop. Validation remains with the server.
   str = trim(str);
-  // Blah qualified handles preserve the domain. Unqualified Telegram names
-  // retain upstream normalization; validation remains with the named server.
-  if (str.find('@', 1) == string::npos) {
-    td::remove(str, '.');
-  }
   to_lower_inplace(str);
   return trim(str);
 }
@@ -262,7 +259,36 @@ bool is_empty_string(const string &str) {
   return strip_empty_characters(str, str.size()).empty();
 }
 
+// A Blah name: a domain of letter-digit-hyphen labels, at least two of them.
+static bool is_valid_domain_username(Slice username) {
+  if (username.size() > 253) {
+    return false;
+  }
+  size_t labels = 0;
+  size_t label_begin = 0;
+  for (size_t i = 0; i <= username.size(); i++) {
+    if (i == username.size() || username[i] == '.') {
+      auto size = i - label_begin;
+      if (size == 0 || size > 63 || username[label_begin] == '-' || username[i - 1] == '-') {
+        return false;
+      }
+      labels++;
+      label_begin = i + 1;
+      continue;
+    }
+    auto c = username[i];
+    if (!is_alpha(c) && !is_digit(c) && c != '-') {
+      return false;
+    }
+  }
+  return labels >= 2;
+}
+
 bool is_valid_username(Slice username) {
+  if (username.find('.') != Slice::npos) {
+    return is_valid_domain_username(username);
+  }
+  // Dotless handles remain only for the DC's own system accounts.
   if (username.empty() || username.size() > 32) {
     return false;
   }
