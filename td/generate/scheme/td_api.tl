@@ -16338,6 +16338,20 @@ requestDiemAuthentication profile:bytes device_id:bytes is_sign_up:Bool = DiemAu
 //@nonce Challenge nonce @proof Diem login proof @is_sign_up True for signup @first_name First name for signup @last_name Last name for signup
 checkDiemAuthentication nonce:bytes proof:bytes is_sign_up:Bool first_name:string last_name:string = Ok;
 
+//@description Publishes an application-signed Diem profile, such as a revision of the user's own profile that claims a new name before setUsername takes it. No private key is passed to TDLib
+//@profile Application-signed canonical CBOR Diem profile
+publishDiemProfile profile:bytes = Ok;
+
+//@description Binds, or republishes, the Diem identity of a supergroup, channel or bot the user owns. The application signs the resource's profile; its roster must list this session's device, and its home must name this DC, the resource kind and its identifier. No private key is passed to TDLib
+//@chat_id Identifier of a supergroup or channel chat the user created, or of the private chat with a bot the user owns
+//@profile Application-signed canonical CBOR Diem profile of the resource
+bindChatDiemIdentity chat_id:int53 profile:bytes = Ok;
+
+//@description Binds, or republishes, the Diem identity of a sticker or custom emoji set the user owns. The application signs the set's profile, as for bindChatDiemIdentity
+//@name Short name of the sticker set
+//@profile Application-signed canonical CBOR Diem profile of the sticker set
+bindStickerSetDiemIdentity name:string profile:bytes = Ok;
+
 ---types---
 
 //@description An exact original-layer signed-invocation proposal. The application must independently inspect the query, verify all canonical mappings and approve with its device key

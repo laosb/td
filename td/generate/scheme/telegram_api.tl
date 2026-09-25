@@ -3150,6 +3150,14 @@ blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string 
 blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;
 blah.signInWithDevice#075b1209 nonce:bytes proof:bytes = auth.Authorization;
 
+// BLAH: profiles and resource identities; the application signs every profile.
+---types---
+blah.inputResourcePeer#b33737bf peer:InputPeer = blah.InputResource;
+blah.inputResourceStickerSet#9b90aef4 stickerset:InputStickerSet = blah.InputResource;
+---functions---
+blah.publishProfile#a13d7324 profile:bytes = Bool;
+blah.bindResourceIdentity#6c6fb942 resource:blah.InputResource profile:bytes = Bool;
+
 ---types---
 
 blah.signedInvocationPreparation#361565c1 statement:bytes manifest:bytes = blah.SignedInvocationPreparation;

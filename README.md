@@ -23,6 +23,12 @@ Blah public names are domains, such as `alice.one.example`: username normalizati
 keeps their dots, and mention and bot-command detection spans the whole name, stopping
 before a sentence's closing dot. Dotless handles remain for a DC's system accounts.
 
+`publishDiemProfile` publishes an application-signed profile, such as one claiming a new
+name before `setUsername` takes it. `bindChatDiemIdentity` and `bindStickerSetDiemIdentity`
+bind the application-signed identity of a supergroup, channel, bot or sticker set the user
+owns; the DC checks ownership, that the roster lists this session's device, and the home.
+Both carry opaque profiles through the same adapter; no key reaches TDLib.
+
 Applications provide immutable per-client endpoints and RSA pins through
 `setTdlibParameters.network_configuration`, using JSON with a `dcs` array of
 `{id, rsaPublicKey, endpoints}` entries. Each endpoint has `ip`, `port`, and an
