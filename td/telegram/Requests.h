@@ -116,6 +116,9 @@ class Requests {
   void on_request(uint64 id, td_api::checkDiemAuthentication &request);
   void on_request(uint64 id, td_api::prepareDiemInvocation &request);
   void on_request(uint64 id, td_api::invokeDiemSignedQuery &request);
+  void on_request(uint64 id, td_api::publishDiemProfile &request);
+  void on_request(uint64 id, td_api::bindChatDiemIdentity &request);
+  void on_request(uint64 id, td_api::bindStickerSetDiemIdentity &request);
   void on_request(uint64 id, td_api::setRpcInterception &request);
   void on_request(uint64 id, td_api::completeRpcInterception &request);
   void on_request(uint64 id, td_api::failRpcInterception &request);
