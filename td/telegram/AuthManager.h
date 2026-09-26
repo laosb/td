@@ -43,6 +43,11 @@ class AuthManager final : public NetActor {
   void request_diem_authentication(uint64 query_id, string profile, string device_id, bool sign_up);
   void check_diem_authentication(uint64 query_id, string nonce, string proof, bool sign_up,
                                  string first_name, string last_name);
+  void get_diem_layer_config(uint64 query_id);
+  void prepare_diem_authentication(uint64 query_id, string domain, string contact, bool sign_up,
+                                   string first_name, string last_name);
+  void submit_diem_authentication(uint64 query_id, string proof);
+  void prepare_diem_invocation(uint64 query_id, string domain, string query);
 
   void set_phone_number(uint64 query_id, string phone_number,
                         td_api::object_ptr<td_api::phoneNumberAuthenticationSettings> settings);
@@ -125,6 +130,8 @@ class AuthManager final : public NetActor {
     None,
     DiemFederationInfo,
     DiemChallenge,
+    DiemLayerConfig,
+    DiemIdentityChallenge,
     SignIn,
     SignUp,
     SendCode,
@@ -216,6 +223,8 @@ class AuthManager final : public NetActor {
 
   // State::WaitCode
   SendCodeHelper send_code_helper_;
+  string diem_pending_query_;
+  bool diem_pending_signup_ = false;
   string code_;
 
   // State::WaitQrCodeConfirmation
@@ -311,6 +320,8 @@ class AuthManager final : public NetActor {
   void on_result(NetQueryPtr net_query) final;
   void on_diem_federation_info(NetQueryPtr net_query);
   void on_diem_challenge(NetQueryPtr net_query);
+  void on_diem_layer_config(NetQueryPtr net_query);
+  void on_diem_identity_challenge(NetQueryPtr net_query);
 
   void update_state(State new_state, bool should_save_state = true);
   tl_object_ptr<td_api::AuthorizationState> get_authorization_state_object(State authorization_state) const;

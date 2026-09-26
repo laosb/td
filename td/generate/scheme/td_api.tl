@@ -16325,10 +16325,41 @@ diemAuthenticationChallenge payload:bytes auth_key_id:int64 session_id:int64 = D
 //@domain Canonical DC domain @public_key Algorithm-qualified Diem public-key encoding
 diemFederationInfo domain:string public_key:bytes = DiemFederationInfo;
 
+//@description Layer-1 DC identity advertised over the pinned MTProto transport
+//@domain Discovery domain @dc_identity SHA-256 identity ID of the DC signing key @layer Highest supported Blah layer
+diemLayerConfig domain:string dc_identity:bytes layer:int32 = DiemLayerConfig;
+
+//@description One layer-1 challenge and the exact boxed TL query that the application must approve and sign
+//@payload Opaque CBOR challenge @query Exact inner TL query @auth_key_id Local transport key ID @session_id Local MTProto session ID
+diemIdentityChallenge payload:bytes query:bytes auth_key_id:int64 session_id:int64 = DiemIdentityChallenge;
+
+//@description Raw boxed TL response to a Diem proof-wrapped query
+//@result Exact boxed TL response bytes
+diemQueryResult result:bytes = DiemQueryResult;
+
 ---functions---
 
 //@description Gets the DC federation identity before login. Available before authorization
 getDiemFederationInfo = DiemFederationInfo;
+
+//@description Reads the layer-1 DC identity before authorization
+getDiemLayerConfig = DiemLayerConfig;
+
+//@description Prepares a domain-first sendCode, an email retry, or a signup query and requests a fresh identity challenge
+//@domain Identity's advertised profile domain @contact Empty for the initial domain request; email after SIGNUP_EMAIL_REQUIRED @is_sign_up True to prepare auth.signUp @first_name Name for signup @last_name Name for signup
+prepareDiemAuthentication domain:string contact:string is_sign_up:Bool first_name:string last_name:string = DiemIdentityChallenge;
+
+//@description Submits a Diem .action proof over the returned challenge and SHA-512 of its exact query
+//@proof Canonical CBOR Diem signed message
+submitDiemAuthentication proof:bytes = Ok;
+
+//@description Requests a challenge for an exact application-selected TL query on the authorized session
+//@domain Resource identity's advertised profile domain @query Exact boxed TL query to sign
+prepareDiemIdentityInvocation domain:string query:bytes = DiemIdentityChallenge;
+
+//@description Sends the exact query and its Diem .action proof through the layer-1 wrapper
+//@query Exact boxed TL query returned by preparation @proof Signed CBOR Diem action proof
+invokeDiemIdentityQuery query:bytes proof:bytes = DiemQueryResult;
 
 //@description Requests a challenge for application-held device keys. Available before authorization
 //@profile Signed public Diem profile @device_id Device signing-key ID @is_sign_up True to create an account; false to sign in

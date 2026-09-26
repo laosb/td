@@ -3142,9 +3142,15 @@ ephemeral.getWelcomeMessages#db9ac18d peer:InputPeer hash:long = ephemeral.Welco
 
 // BLAH: device authentication transport; Diem crypto stays in the application.
 ---types---
+blah.config#ccd2da17 layer:int dc_identity:bytes discovery_domain:string = blah.Config;
+blah.identityChallenge#a5bf10f6 data:bytes expires_at:int = blah.IdentityChallenge;
 blah.deviceChallenge#3aff2c63 payload:bytes = blah.DeviceChallenge;
 blah.federationInfo#2c837d85 domain:string public_key:bytes = blah.FederationInfo;
 ---functions---
+blah.invokeWithLayer#fb8f651a {X:Type} layer:int query:!X = X;
+blah.invokeWithIdentityProof#525b7c28 {X:Type} proof:bytes query:!X = X;
+blah.getConfig#76372b1a = blah.Config;
+blah.requestIdentityChallenge#dceefd53 domain:string = blah.IdentityChallenge;
 blah.getFederationInfo#35f63b15 = blah.FederationInfo;
 blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string = blah.DeviceChallenge;
 blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;

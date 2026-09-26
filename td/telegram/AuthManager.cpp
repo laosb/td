@@ -1623,6 +1623,12 @@ void AuthManager::on_result(NetQueryPtr net_query) {
     case NetQueryType::DiemChallenge:
       on_diem_challenge(std::move(net_query));
       break;
+    case NetQueryType::DiemLayerConfig:
+      on_diem_layer_config(std::move(net_query));
+      break;
+    case NetQueryType::DiemIdentityChallenge:
+      on_diem_identity_challenge(std::move(net_query));
+      break;
     case NetQueryType::None:
       net_query->clear();
       break;
