@@ -39,10 +39,6 @@ class AuthManager final : public NetActor {
   void get_state(uint64 query_id);
 
   // BLAH: the application owns Diem device keys and verifies the returned binding.
-  void get_diem_federation_info(uint64 query_id);
-  void request_diem_authentication(uint64 query_id, string profile, string device_id, bool sign_up);
-  void check_diem_authentication(uint64 query_id, string nonce, string proof, bool sign_up,
-                                 string first_name, string last_name);
   void get_diem_layer_config(uint64 query_id);
   void prepare_diem_authentication(uint64 query_id, string domain, string contact, bool sign_up,
                                    string first_name, string last_name);
@@ -128,8 +124,6 @@ class AuthManager final : public NetActor {
 
   enum class NetQueryType : int32 {
     None,
-    DiemFederationInfo,
-    DiemChallenge,
     DiemLayerConfig,
     DiemIdentityChallenge,
     SignIn,
@@ -318,8 +312,6 @@ class AuthManager final : public NetActor {
   void on_get_authorization(tl_object_ptr<telegram_api::auth_Authorization> auth_ptr);
 
   void on_result(NetQueryPtr net_query) final;
-  void on_diem_federation_info(NetQueryPtr net_query);
-  void on_diem_challenge(NetQueryPtr net_query);
   void on_diem_layer_config(NetQueryPtr net_query);
   void on_diem_identity_challenge(NetQueryPtr net_query);
 
