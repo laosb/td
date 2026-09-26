@@ -2060,10 +2060,6 @@ void Requests::on_request(uint64 id, td_api::setAuthenticationPhoneNumber &reque
                std::move(request.settings_));
 }
 
-void Requests::on_request(uint64 id, const td_api::getDiemFederationInfo &request) {
-  send_closure(td_->auth_manager_actor_, &AuthManager::get_diem_federation_info, id);
-}
-
 void Requests::on_request(uint64 id, const td_api::getDiemLayerConfig &request) {
   send_closure(td_->auth_manager_actor_, &AuthManager::get_diem_layer_config, id);
 }
@@ -2087,19 +2083,6 @@ void Requests::on_request(uint64 id, td_api::prepareDiemIdentityInvocation &requ
   CLEAN_INPUT_STRING(request.domain_);
   send_closure(td_->auth_manager_actor_, &AuthManager::prepare_diem_invocation, id,
                std::move(request.domain_), std::move(request.query_));
-}
-
-void Requests::on_request(uint64 id, td_api::requestDiemAuthentication &request) {
-  send_closure(td_->auth_manager_actor_, &AuthManager::request_diem_authentication, id,
-               std::move(request.profile_), std::move(request.device_id_), request.is_sign_up_);
-}
-
-void Requests::on_request(uint64 id, td_api::checkDiemAuthentication &request) {
-  CLEAN_INPUT_STRING(request.first_name_);
-  CLEAN_INPUT_STRING(request.last_name_);
-  send_closure(td_->auth_manager_actor_, &AuthManager::check_diem_authentication, id,
-               std::move(request.nonce_), std::move(request.proof_), request.is_sign_up_,
-               std::move(request.first_name_), std::move(request.last_name_));
 }
 
 void Requests::on_request(uint64 id, td_api::checkAuthenticationPremiumPurchase &request) {

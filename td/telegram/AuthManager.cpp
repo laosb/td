@@ -1617,12 +1617,6 @@ void AuthManager::on_result(NetQueryPtr net_query) {
     type = NetQueryType::Authentication;
   }
   switch (type) {
-    case NetQueryType::DiemFederationInfo:
-      on_diem_federation_info(std::move(net_query));
-      break;
-    case NetQueryType::DiemChallenge:
-      on_diem_challenge(std::move(net_query));
-      break;
     case NetQueryType::DiemLayerConfig:
       on_diem_layer_config(std::move(net_query));
       break;

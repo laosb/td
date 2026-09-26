@@ -1,33 +1,17 @@
 # TDLib
 
-Blah device authentication uses `getDiemFederationInfo`,
-`requestDiemAuthentication`, and `checkDiemAuthentication`. The application
-validates the advertised federation identity against its configured destination,
-then verifies the challenge's operation, profile, identity, device, expiry and
-locally observed transport-key/session IDs before signing with Diem. Under PFS,
-the transport key is temporary; the permanent authorization key is unchanged.
-TDLib only carries
-public profiles and proofs; signing and wrapping keys remain with the application.
-The adapter is isolated in `td/telegram/AuthManagerDiem.cpp` to keep fork changes
-small. Standard Telegram authorization behavior remains available for Telegram.
-
-`prepareDiemInvocation` and `invokeDiemSignedQuery` carry exact original-layer
-queries, canonical mapping proposals and application-approved action proofs over
-the authorized connection. Applications independently verify the pinned namespace,
-retained generation/peer bindings, full query reference inventory and intended
-operation before signing. The transport adapter in `td/telegram/RequestsDiem.cpp`
-does not hold keys, approve automatically or bypass ordinary server permissions.
-Unsupported signed methods are rejected by the server.
+The Blah adapter exposes the layer-1 DC configuration and Diem identity challenge
+to the application. For sign-in it prepares a domain-first `auth.sendCode` query;
+if the DC requires an admission email, the application supplies one and prepares
+a fresh query. The application signs the opaque challenge and SHA-512 of the exact
+query with its Diem device. TDLib submits that proof without holding identity
+keys. Signup and resource actions use the same proof wrapper. The transport
+adapter lives in `td/telegram/AuthManagerDiem.cpp` and
+`td/telegram/RequestsDiem.cpp`.
 
 Blah public names are domains, such as `alice.one.example`: username normalization
 keeps their dots, and mention and bot-command detection spans the whole name, stopping
 before a sentence's closing dot. Dotless handles remain for a DC's system accounts.
-
-`publishDiemProfile` publishes an application-signed profile, such as one claiming a new
-name before `setUsername` takes it. `bindChatDiemIdentity` and `bindStickerSetDiemIdentity`
-bind the application-signed identity of a supergroup, channel, bot or sticker set the user
-owns; the DC checks ownership, that the roster lists this session's device, and the home.
-Both carry opaque profiles through the same adapter; no key reaches TDLib.
 
 Applications provide immutable per-client endpoints and RSA pins through
 `setTdlibParameters.network_configuration`, using JSON with a `dcs` array of

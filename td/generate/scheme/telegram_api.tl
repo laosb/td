@@ -3144,34 +3144,8 @@ ephemeral.getWelcomeMessages#db9ac18d peer:InputPeer hash:long = ephemeral.Welco
 ---types---
 blah.config#ccd2da17 layer:int dc_identity:bytes discovery_domain:string = blah.Config;
 blah.identityChallenge#a5bf10f6 data:bytes expires_at:int = blah.IdentityChallenge;
-blah.deviceChallenge#3aff2c63 payload:bytes = blah.DeviceChallenge;
-blah.federationInfo#2c837d85 domain:string public_key:bytes = blah.FederationInfo;
 ---functions---
 blah.invokeWithLayer#fb8f651a {X:Type} layer:int query:!X = X;
 blah.invokeWithIdentityProof#525b7c28 {X:Type} proof:bytes query:!X = X;
 blah.getConfig#76372b1a = blah.Config;
 blah.requestIdentityChallenge#dceefd53 domain:string = blah.IdentityChallenge;
-blah.getFederationInfo#35f63b15 = blah.FederationInfo;
-blah.getDeviceChallenge#5391a252 profile:bytes device_id:bytes operation:string = blah.DeviceChallenge;
-blah.signUpWithDevice#713e79f9 nonce:bytes proof:bytes first_name:string last_name:string = auth.Authorization;
-blah.signInWithDevice#075b1209 nonce:bytes proof:bytes = auth.Authorization;
-
-// BLAH: profiles and resource identities; the application signs every profile.
----types---
-blah.inputResourcePeer#b33737bf peer:InputPeer = blah.InputResource;
-blah.inputResourceStickerSet#9b90aef4 stickerset:InputStickerSet = blah.InputResource;
----functions---
-blah.publishProfile#a13d7324 profile:bytes = Bool;
-blah.bindResourceIdentity#6c6fb942 resource:blah.InputResource profile:bytes = Bool;
-
----types---
-
-blah.signedInvocationPreparation#361565c1 statement:bytes manifest:bytes = blah.SignedInvocationPreparation;
-
-blah.signedInvocationResult#fdc7e2cb request_id:bytes result:bytes = blah.SignedInvocationResult;
-
----functions---
-
-blah.prepareSignedInvocation#66aa458f layer:int query:bytes request_id:bytes device_id:bytes = blah.SignedInvocationPreparation;
-
-blah.invokeWithSig#a9824335 statement:bytes manifest:bytes proof:bytes = blah.SignedInvocationResult;
