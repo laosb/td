@@ -16925,7 +16925,23 @@ diemIdentityChallenge payload:bytes query:bytes auth_key_id:int64 session_id:int
 //@result Exact boxed TL response bytes
 diemQueryResult result:bytes = DiemQueryResult;
 
+//@description A resource's signed Diem profile known to the current DC. The application must verify signatures and validity; stored profiles may have expired
+//@profile Exact canonical CBOR profile bytes; empty if the DC has no known identity for the resource. Invalid or inaccessible resources return an error instead
+diemResourceProfile profile:bytes = DiemResourceProfile;
+
 ---functions---
+
+//@description Returns the Diem profile known to the current DC for a user or bot. Can be used by bots
+//@user_id TDLib user identifier
+getUserDiemProfile user_id:int53 = DiemResourceProfile;
+
+//@description Returns the Diem profile known to the current DC for a supergroup or channel. Private chats, basic groups and secret chats are invalid. Can be used by bots
+//@chat_id TDLib chat identifier
+getChatDiemProfile chat_id:int53 = DiemResourceProfile;
+
+//@description Returns the Diem profile known to the current DC for a sticker or custom emoji set known to TDLib. Can be used by bots
+//@set_id Sticker set identifier
+getStickerSetDiemProfile set_id:int64 = DiemResourceProfile;
 
 //@description Reads the layer-1 DC identity before authorization
 getDiemLayerConfig = DiemLayerConfig;
