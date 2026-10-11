@@ -3142,10 +3142,14 @@ ephemeral.getWelcomeMessages#db9ac18d peer:InputPeer hash:long = ephemeral.Welco
 
 // BLAH: device authentication transport; Diem crypto stays in the application.
 ---types---
-blah.config#ccd2da17 layer:int dc_identity:bytes discovery_domain:string = blah.Config;
-blah.identityChallenge#a5bf10f6 data:bytes expires_at:int = blah.IdentityChallenge;
+blah.config#642ad48e layer:int dc_identity:bytes discovery_domain:string = blah.Config;
+blah.identityChallenge#2b2e0aab data:bytes expires_at:int = blah.IdentityChallenge;
+blah.resourceProfile#c0d31b67 id:long profile:bytes = blah.ResourceProfile;
 ---functions---
 blah.invokeWithLayer#fb8f651a {X:Type} layer:int query:!X = X;
-blah.invokeWithIdentityProof#525b7c28 {X:Type} proof:bytes query:!X = X;
+blah.invokeWithIdentityProof#61b4c668 {X:Type} proof:bytes query:!X = X;
 blah.getConfig#76372b1a = blah.Config;
 blah.requestIdentityChallenge#dceefd53 domain:string = blah.IdentityChallenge;
+blah.getUserProfile#517800c0 id:Vector<InputUser> = Vector<blah.ResourceProfile>;
+blah.getChannelProfile#8344006d id:Vector<InputChannel> = Vector<blah.ResourceProfile>;
+blah.getStickerSetProfile#ff5c6967 id:Vector<InputStickerSet> = Vector<blah.ResourceProfile>;

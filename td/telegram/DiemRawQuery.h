@@ -12,7 +12,7 @@ namespace td {
 class DiemRawQuery final : public telegram_api::Function {
  public:
   static constexpr int32 INVOKE_WITH_LAYER = static_cast<int32>(0xfb8f651a);
-  static constexpr int32 INVOKE_WITH_IDENTITY_PROOF = 0x525b7c28;
+  static constexpr int32 INVOKE_WITH_IDENTITY_PROOF = 0x61b4c668;
 
   DiemRawQuery(int32 constructor, string query, string proof = {}, int32 layer = 1)
       : constructor_(constructor), query_(std::move(query)), proof_(std::move(proof)), layer_(layer) {
